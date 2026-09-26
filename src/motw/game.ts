@@ -1,0 +1,349 @@
+import { randomInt } from "node:crypto";
+import type { ModelClient } from "../ai/provider.js";
+import type { RandomInt } from "../domain/dice.js";
+import { aiHunterAction, type Effects, type Keeper, type KeeperReply } from "./keeper.js";
+import { effectiveRoll, playbook } from "./playbooks.js";
+import {
+  BASIC_MOVES, MAX_HARM, MAX_STAT, STATS, applyLuckToRoll, basicMove, describeRoll, harmStatus, rollMove,
+  type BasicMoveId, type Stat,
+} from "./rules.js";
+import {
+  advanceCountdown, countdownAllowed, applyHarm, heal, hunterById, hurtMonster, improveStat, log, markXp, recordClues,
+  spendLuck, type GameState, type Hunter,
+} from "./state.js";
+
+/** Everything the game needs from a front end. The terminal implements it; a web or Discord UI could too. */
+export interface GameIO {
+  show(kind: "keeper" | "hunter" | "roll" | "system" | "info" | "error" | "heading", text: string, who?: string): void;
+  /** Resolves "/quit" if input ends (Ctrl-D, closed SSH). */
+  ask(prompt: string): Promise<string>;
+  choose(prompt: string, options: readonly string[]): Promise<number>;
+  confirm(prompt: string): Promise<boolean>;
+  busy(label: string): () => void;
+}
+
+export type GameDeps = {
+  keeper: Keeper;
+  model: ModelClient;
+  io: GameIO;
+  save: (state: GameState) => Promise<unknown>;
+  random?: RandomInt;
+  debug?: boolean;
+};
+
+const SUMMARIZE_AFTER = 40;
+const KEEP_RECENT = 16;
+
+export const HELP = [
+  "Type what your hunter does or says, in plain words. Commands:",
+  "  /sheet [name]  your sheet (or another hunter's)",
+  "  /party         everyone's harm and Luck",
+  "  /clues         clues found so far",
+  "  /recap         the story so far",
+  "  /ask <q>       out-of-character question to the Keeper",
+  "  /rules         the basic moves",
+  "  /pass          skip your turn",
+  "  /save, /quit   save (the game also autosaves every turn), or save and stop",
+].join("\n");
+
+/** The players chose to stop after a model failure; the game is saved. */
+class GameInterrupted extends Error {}
+
+type TurnInput = { kind: "action"; text: string } | { kind: "pass" } | { kind: "quit" };
+
+export class Game {
+  readonly #random: RandomInt;
+
+  constructor(readonly state: GameState, private readonly deps: GameDeps) {
+    this.#random = deps.random ?? randomInt;
+  }
+
+  /** Runs until the mystery ends or a player quits. Returns true if the game is over. */
+  async run(): Promise<boolean> {
+    try {
+      return await this.#run();
+    } catch (error) {
+      if (!(error instanceof GameInterrupted)) throw error;
+      await this.deps.save(this.state);
+      this.deps.io.show("info", "Game saved. When the model is back, resume with: npm run play");
+      return false;
+    }
+  }
+
+  async #run(): Promise<boolean> {
+    const { state, deps } = this;
+    if (state.round === 0) {
+      deps.io.show("heading", state.mystery.title);
+      deps.io.show("info", state.mystery.hook);
+      const reply = await this.#withBusy("The Keeper sets the scene", () => deps.keeper.openScene(state));
+      await this.#applyReply(reply);
+      state.round = 1;
+      state.turn = 0;
+      await deps.save(state);
+    } else {
+      deps.io.show("heading", `${state.mystery.title}, round ${state.round}`);
+      deps.io.show("info", state.summary || "(Resuming.)");
+      const last = [...state.log].reverse().find((e) => e.kind === "keeper");
+      if (last) deps.io.show("keeper", last.text);
+    }
+
+    while (state.status === "active") {
+      while (state.turn < state.hunters.length && state.status === "active") {
+        const hunter = state.hunters[state.turn]!;
+        if (harmStatus(hunter.harm) !== "out") {
+          const input = hunter.controller.kind === "human" ? await this.#humanTurn(hunter) : await this.#aiTurn(hunter);
+          if (input.kind === "quit") {
+            await deps.save(state);
+            deps.io.show("info", "Game saved. Pick it back up with: npm run play");
+            return false;
+          }
+          if (input.kind === "action") await this.#resolveAction(hunter, input.text);
+        }
+        state.turn += 1;
+        await this.#maybeSummarize();
+        await deps.save(state);
+      }
+      if (state.status !== "active") break;
+      const reply = await this.#withBusy("The Keeper moves", () => deps.keeper.keeperTurn(state));
+      await this.#applyReply(reply, true);
+      if (state.status !== "active") break;
+      state.round += 1;
+      state.turn = 0;
+      await deps.save(state);
+    }
+
+    deps.io.show("heading", state.status === "won" ? "The monster is stopped." : "The monster wins this week.");
+    deps.io.show("info", `Clues found: ${state.cluesFound.length}/${state.mystery.clues.length}. Model cost this game: $${state.costUsd.toFixed(3)}.`);
+    await deps.save(state);
+    return true;
+  }
+
+  // ---------- turns ----------
+
+  async #humanTurn(hunter: Hunter): Promise<TurnInput> {
+    const { io } = this.deps;
+    const player = hunter.controller.kind === "human" ? hunter.controller.player : "";
+    for (;;) {
+      const line = (await io.ask(`${player}, ${hunter.name} (harm ${hunter.harm}, Luck ${hunter.luck}): what do you do?`)).trim();
+      if (!line) continue;
+      if (!line.startsWith("/")) return { kind: "action", text: line.slice(0, 600) };
+      const [command, ...rest] = line.slice(1).split(/\s+/);
+      const arg = rest.join(" ");
+      switch ((command ?? "").toLowerCase()) {
+        case "quit": case "exit": return { kind: "quit" };
+        case "pass": return { kind: "pass" };
+        case "help": io.show("info", HELP); break;
+        case "sheet": io.show("info", sheet(arg ? hunterById(this.state, arg) ?? hunter : hunter)); break;
+        case "party": io.show("info", this.state.hunters.map(partyLine).join("\n")); break;
+        case "clues": io.show("info", this.state.cluesFound.length ? this.state.cluesFound.map((c) => `- ${c}`).join("\n") : "No clues yet."); break;
+        case "recap": io.show("info", this.state.summary || "Nothing to recap yet; it's all in the recent scroll."); break;
+        case "rules": io.show("info", BASIC_MOVES.map((m) => `${m.name} (+${m.stat}): ${m.trigger}`).join("\n")); break;
+        case "save": await this.deps.save(this.state); io.show("info", "Saved."); break;
+        case "ask":
+          if (!arg) { io.show("info", "Usage: /ask <question>"); break; }
+          io.show("keeper", await this.#withBusy("The Keeper thinks", () => this.deps.keeper.answer(this.state, player, arg)));
+          break;
+        default: io.show("info", `Unknown command /${command}. Type /help.`);
+      }
+    }
+  }
+
+  async #aiTurn(hunter: Hunter): Promise<TurnInput> {
+    const result = await this.#withBusy(`${hunter.name} is thinking`, () => aiHunterAction(this.deps.model, this.state, hunter));
+    this.state.costUsd += result.costUsd;
+    const text = result.say ? `"${result.say}" ${result.act}` : result.act;
+    return { kind: "action", text };
+  }
+
+  // ---------- resolving ----------
+
+  async #resolveAction(hunter: Hunter, text: string): Promise<void> {
+    const { state, deps } = this;
+    log(state, { kind: "hunter", who: hunter.name, text });
+    deps.io.show("hunter", text, hunter.name);
+
+    const adj = await this.#withBusy("The Keeper considers", () => deps.keeper.adjudicate(state, hunter, text));
+    this.#warn(adj.warnings);
+    if (!adj.roll) {
+      await this.#applyReply(adj);
+      return;
+    }
+    if (adj.narration) {
+      deps.io.show("keeper", adj.narration);
+      log(state, { kind: "keeper", text: adj.narration });
+    }
+
+    const move = basicMove(adj.roll.move)!;
+    const { stat, bonus: moveBonus, sources } = effectiveRoll(hunter, move.id, move.stat);
+    const forward = this.#takeForward(hunter);
+    if (forward) sources.push(forward.source);
+    const bonus = Math.min(3, moveBonus + (forward ? 1 : 0));
+    let roll = rollMove({ stat, statValue: hunter.stats[stat], bonus }, this.#random);
+    const via = sources.length ? ` [${sources.join(", ")}]` : "";
+    deps.io.show("roll", `${move.name}: ${describeRoll(roll)}${via}`, hunter.name);
+
+    if (roll.band !== "strong" && hunter.luck > 0 && (await this.#wantsLuckForRoll(hunter, roll.band))) {
+      spendLuck(state, hunter, "to turn the roll into a 12");
+      roll = applyLuckToRoll(roll);
+      deps.io.show("roll", describeRoll(roll), hunter.name);
+    }
+    log(state, { kind: "roll", who: hunter.name, text: `${move.name}: ${describeRoll(roll)}` });
+    if (roll.band === "miss") {
+      deps.io.show("system", `${hunter.name} marks experience.`);
+      if (markXp(state, hunter)) await this.#improve(hunter);
+    }
+
+    if (roll.band !== "miss" && (move.id === "help-out" || move.id === "read-situation")) {
+      const others = move.id === "help-out";
+      (state.forward ??= []).push({ hunter: hunter.id, others, source: others ? `${hunter.name}'s help` : "acting on what you read" });
+      deps.io.show("system", others ? `${hunter.name}'s help: the next roll by another hunter gets +1.` : `${hunter.name} gets +1 on their next roll when acting on the answers.`);
+    }
+
+    const questions = move.questions && move.holds && roll.band !== "miss"
+      ? await this.#pickQuestions(hunter, move.questions, roll.band === "strong" ? move.holds.strong : move.holds.mixed)
+      : [];
+    const reply = await this.#withBusy("The Keeper narrates", () => deps.keeper.resolve(state, hunter, text, move.id as BasicMoveId, roll, questions));
+    await this.#applyReply(reply);
+  }
+
+  async #applyReply(reply: KeeperReply, keeperTurn = false): Promise<void> {
+    const { state, deps } = this;
+    this.#warn(reply.warnings);
+    deps.io.show("keeper", reply.narration);
+    log(state, { kind: "keeper", text: reply.narration });
+    for (const line of await this.#applyEffects(reply.effects, keeperTurn)) deps.io.show("system", line);
+  }
+
+  async #applyEffects(effects: Effects, keeperTurn: boolean): Promise<string[]> {
+    const { state } = this;
+    const lines: string[] = [];
+    for (const { hunter, amount, reason } of effects.harm) {
+      if (state.status !== "active") break;
+      if (hunter.luck > 0 && (await this.#wantsLuckForHarm(hunter, amount, reason))) {
+        spendLuck(state, hunter, `to shrug off ${amount} harm`);
+        lines.push(`${hunter.name} spends Luck and shrugs off the harm (${hunter.luck} Luck left).`);
+        continue;
+      }
+      lines.push(applyHarm(state, hunter, amount, reason));
+    }
+    for (const { hunter, amount } of effects.heal) lines.push(heal(state, hunter, amount));
+    if (effects.monsterHarm > 0) lines.push(hurtMonster(state, effects.monsterHarm));
+    const found = recordClues(state, effects.clues);
+    if (found.length) lines.push(...found.map((c) => `Clue: ${c}`));
+    if (effects.weaknessDiscovered && !state.weaknessKnown) {
+      state.weaknessKnown = true;
+      log(state, { kind: "system", text: "The hunters know how to stop it." });
+      lines.push("You know how to stop it now.");
+    }
+    if (effects.countdown && state.status === "active") {
+      if (countdownAllowed(state, keeperTurn)) lines.push(advanceCountdown(state));
+      else this.#warn(["countdown advance ignored: pacing (once per round; final step only on the keeper's turn)"]);
+    }
+    if (effects.outcome === "won" && state.status === "active") {
+      state.status = "won";
+      log(state, { kind: "system", text: "The hunters stopped the monster." });
+    }
+    return lines;
+  }
+
+  /** Use up the first +1 waiting for this hunter, if any. */
+  #takeForward(hunter: Hunter): { source: string } | undefined {
+    const list = this.state.forward ?? [];
+    const index = list.findIndex((f) => (f.others ? f.hunter !== hunter.id : f.hunter === hunter.id));
+    if (index < 0) return undefined;
+    return list.splice(index, 1)[0];
+  }
+
+  // ---------- choices ----------
+
+  async #wantsLuckForRoll(hunter: Hunter, band: "mixed" | "miss"): Promise<boolean> {
+    if (hunter.controller.kind === "ai") return band === "miss" && hunter.luck >= 5;
+    return this.deps.io.confirm(`${hunter.name}: spend 1 Luck to make this a 12? (${hunter.luck} left)`);
+  }
+
+  async #wantsLuckForHarm(hunter: Hunter, amount: number, reason: string): Promise<boolean> {
+    if (hunter.controller.kind === "ai") return hunter.harm + amount > MAX_HARM;
+    return this.deps.io.confirm(`${hunter.name} is about to take ${amount} harm${reason ? ` (${reason})` : ""}, going to ${hunter.harm + amount}/${MAX_HARM}. Spend 1 Luck to avoid it? (${hunter.luck} left)`);
+  }
+
+  async #pickQuestions(hunter: Hunter, pool: readonly string[], count: number): Promise<string[]> {
+    const picked: string[] = [];
+    const remaining = [...pool];
+    for (let i = 0; i < count && remaining.length; i++) {
+      const index = hunter.controller.kind === "human"
+        ? await this.deps.io.choose(`${hunter.name}, ask a question (${i + 1} of ${count}):`, remaining)
+        : this.#random(0, remaining.length);
+      picked.push(...remaining.splice(index, 1));
+    }
+    return picked;
+  }
+
+  async #improve(hunter: Hunter): Promise<void> {
+    const options = STATS.filter((s) => hunter.stats[s] < MAX_STAT);
+    if (!options.length) return;
+    let stat: Stat;
+    if (hunter.controller.kind === "human") {
+      const labels = options.map((s) => `${s} (${fmt(hunter.stats[s])} -> ${fmt(hunter.stats[s] + 1)})`);
+      stat = options[await this.deps.io.choose(`${hunter.name} earned an improvement! Raise which stat?`, labels)]!;
+    } else {
+      stat = [...options].sort((a, b) => hunter.stats[b] - hunter.stats[a])[0]!;
+    }
+    this.deps.io.show("system", improveStat(this.state, hunter, stat));
+  }
+
+  // ---------- plumbing ----------
+
+  async #maybeSummarize(): Promise<void> {
+    const { state } = this;
+    if (state.log.length - state.summarizedThrough < SUMMARIZE_AFTER) return;
+    const upTo = state.log.length - KEEP_RECENT;
+    try {
+      state.summary = await this.deps.keeper.summarize(state, state.log.slice(state.summarizedThrough, upTo));
+      state.summarizedThrough = upTo;
+    } catch (error) {
+      this.#warn([`recap failed, will retry: ${error instanceof Error ? error.message : String(error)}`]);
+    }
+  }
+
+  async #withBusy<T>(label: string, fn: () => Promise<T>): Promise<T> {
+    for (let attempt = 0; ; attempt++) {
+      const stop = this.deps.io.busy(label);
+      try {
+        return await fn();
+      } catch (error) {
+        stop();
+        const message = error instanceof Error ? error.message : String(error);
+        this.deps.io.show("error", `The Keeper stumbled: ${message}`);
+        if (!(await this.deps.io.confirm("Try again?"))) throw new GameInterrupted(message);
+        continue;
+      } finally {
+        stop();
+      }
+    }
+  }
+
+  #warn(warnings: string[]): void {
+    if (this.deps.debug) for (const w of warnings) this.deps.io.show("error", `(debug) ${w}`);
+  }
+}
+
+const fmt = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
+
+export function partyLine(h: Hunter): string {
+  const who = h.controller.kind === "human" ? h.controller.player : "AI";
+  const status = harmStatus(h.harm);
+  return `${h.name} (${playbook(h.playbook)?.name ?? h.playbook}, ${who}): harm ${h.harm}/${MAX_HARM}${status !== "okay" ? ` ${status.toUpperCase()}` : ""}, Luck ${h.luck}, XP ${h.xp}`;
+}
+
+export function sheet(h: Hunter): string {
+  const book = playbook(h.playbook);
+  const moves = (book?.moves ?? []).filter((m) => h.moves.includes(m.id));
+  return [
+    `${h.name}${h.pronouns ? ` (${h.pronouns})` : ""}, ${book?.name ?? h.playbook}`,
+    STATS.map((s) => `${s} ${fmt(h.stats[s])}`).join("  "),
+    `Harm ${h.harm}/${MAX_HARM} (${harmStatus(h.harm)})  Luck ${h.luck}  XP ${h.xp}/5`,
+    ...moves.map((m) => `* ${m.name}: ${m.text}`),
+    `Gear: ${h.gear.map((g) => `${g.name} (${g.harm}-harm, ${g.tags.join(", ")})`).join("; ")}`,
+  ].join("\n");
+}
+

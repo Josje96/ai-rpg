@@ -6,6 +6,7 @@ import { bladesInTheDarkAdapter } from "./blades-in-the-dark.js";
 import { pathfinder2RemasterAdapter } from "./pathfinder2-remaster.js";
 import { cairn2Adapter } from "./cairn-2e.js";
 import { basicRoleplayingAdapter } from "./basic-roleplaying.js";
+import { monsterOfTheWeekAdapter } from "../motw/rules.js";
 
 /** Explicit registry; game-specific adapters can be plugged in as they are implemented. */
 export class RpgSystemRegistry {
@@ -36,5 +37,6 @@ export function createDefaultRpgRegistry(): RpgSystemRegistry {
   registry.register(pathfinder2RemasterAdapter);
   registry.register(cairn2Adapter);
   registry.register(basicRoleplayingAdapter);
+  registry.register(monsterOfTheWeekAdapter);
   return registry;
 }
