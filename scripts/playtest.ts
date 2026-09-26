@@ -1,7 +1,8 @@
 /**
  * Live playtest against the real models: plays two scripted humans (who never spend Luck) plus one AI hunter
- * through The Lantern at Mercy Lake and prints the transcript with timings. Costs a few cents.
- *   npm run playtest
+ * and prints the transcript with timings. Costs a few cents.
+ *   npm run playtest            The Lantern at Mercy Lake, with actions written for it
+ *   npm run playtest -- 3       mystery #3 from the menu, with generic investigator actions
  */
 import { OpenRouterClient } from "../src/ai/openrouter.js";
 import { Game, type GameIO } from "../src/motw/game.js";
@@ -10,7 +11,8 @@ import { loadProjectEnv } from "../src/motw/play.js";
 import { setupGame } from "../src/motw/setup.js";
 
 loadProjectEnv();
-const actions = [
+const mysteryNumber = process.argv[2] ?? "1";
+const mercyLakeActions = [
   "I head into Hale's Diner and ask Dot, gently, about her son Eli and the green light.",
   "I walk the public dock with a flashlight, looking at the waterline and anything left behind.",
   "I go to St. Brendan's and ask Father Mendes if the parish has records about drownings or the old ferry.",
@@ -23,11 +25,19 @@ const actions = [
   "When the light comes, I wade out and try to grab the lantern from the ferryman's hand.",
   "I run the lantern to the boathouse and smash its glass on the grave.",
   "I hold the drowned crew back at the boathouse door so Mara can finish it.",
-  "I smash the lantern's glass on Abel Crane's grave.",
-  "I keep the crew off Mara, swinging the axe.",
-  "/quit",
 ];
-const setup = ["1", "2", "Joe", "Sam", "2", "Mara", "she/her", "y", "3", "Theo", "he/him", "y", "1"];
+const genericActions = [
+  "I ask around town about what's been happening and who has gone missing.",
+  "I look for physical evidence where the last person disappeared.",
+  "I dig through local records and archives for anything like this in the past.",
+  "I find the most frightened person in town and gently ask what they've seen.",
+  "I follow up on the strongest lead we have so far.",
+  "I go where the clues point and search it carefully.",
+  "I tell the others my theory about what this thing is and how to stop it.",
+  "I go after the thing we think will stop it for good.",
+];
+const actions = [...(mysteryNumber === "1" ? mercyLakeActions : genericActions), "/quit"];
+const setup = [mysteryNumber, "2", "Joe", "Sam", "2", "Mara", "she/her", "y", "3", "Theo", "he/him", "y", "1"];
 const t0 = Date.now();
 let last = Date.now();
 const io: GameIO = {

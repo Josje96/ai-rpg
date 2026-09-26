@@ -42,6 +42,7 @@ export const HELP = [
   "  /recap         the story so far",
   "  /ask <q>       out-of-character question to the Keeper",
   "  /rules         the basic moves",
+  "  /credits       attribution for this mystery's sources",
   "  /pass          skip your turn",
   "  /save, /quit   save (the game also autosaves every turn), or save and stop",
 ].join("\n");
@@ -74,6 +75,7 @@ export class Game {
     const { state, deps } = this;
     if (state.round === 0) {
       deps.io.show("heading", state.mystery.title);
+      if (state.mystery.credits?.length) deps.io.show("system", "Uses openly licensed material; type /credits for attribution.");
       deps.io.show("info", state.mystery.hook);
       const reply = await this.#withBusy("The Keeper sets the scene", () => deps.keeper.openScene(state));
       await this.#applyReply(reply);
@@ -137,6 +139,7 @@ export class Game {
         case "party": io.show("info", this.state.hunters.map(partyLine).join("\n")); break;
         case "clues": io.show("info", this.state.cluesFound.length ? this.state.cluesFound.map((c) => `- ${c}`).join("\n") : "No clues yet."); break;
         case "recap": io.show("info", this.state.summary || "Nothing to recap yet; it's all in the recent scroll."); break;
+        case "credits": io.show("info", this.state.mystery.credits?.length ? this.state.mystery.credits.join("\n\n") : "This mystery is original to this project."); break;
         case "rules": io.show("info", BASIC_MOVES.map((m) => `${m.name} (+${m.stat}): ${m.trigger}`).join("\n")); break;
         case "save": await this.deps.save(this.state); io.show("info", "Saved."); break;
         case "ask":

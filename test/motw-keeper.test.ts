@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parseAdjudication, parseEffects } from "../src/motw/keeper.js";
-import { MERCY_LAKE, parseMystery } from "../src/motw/mystery.js";
+import { parseMystery } from "../src/motw/mystery.js";
+import { MERCY_LAKE } from "../src/motw/mysteries/index.js";
 import { advanceCountdown, applyHarm, hurtMonster, listSaves, loadGame, newGame, saveGame, type Hunter } from "../src/motw/state.js";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";

@@ -1,5 +1,6 @@
 import type { ChatMessage, ModelClient } from "../ai/provider.js";
 import { COUNTDOWN_LENGTH, parseMystery, type Mystery } from "./mystery.js";
+import { SOURCE_CREDITS } from "./mysteries/credits.js";
 import { playbook } from "./playbooks.js";
 import { BASIC_MOVES, STATS, basicMove, describeRoll, harmStatus, type BasicMoveId, type MoveRoll, type Stat } from "./rules.js";
 import { activeHunters, type GameState, type Hunter, type LogEntry } from "./state.js";
@@ -223,6 +224,26 @@ export function parseAdjudication(state: GameState, hunter: Hunter, raw: unknown
   return { ...reply, roll, warnings: [...warnings, ...reply.warnings] };
 }
 
+/**
+ * Mystery design guidance, paraphrased from the Fate Horror Toolkit (monster design, CC BY 3.0) and the
+ * Liminal Horror SRD (doom clock structure, CC BY 4.0). See SRD_ATTRIBUTION.md.
+ */
+const MYSTERY_DESIGN = `You design one-session monster-hunting mysteries for a Monster of the Week style game, played by 2-5 hunters.
+Setting: a specific small American town with texture (a diner, a local institution, a festival, a landmark).
+Monster design:
+- Give it a theme (what it symbolizes beyond being scary) and a purpose (why it does what it does). It is not mindless.
+- It threatens what the hunters and townsfolk care about (a bystander they'll like, a place, the town's future), not only their bodies.
+- Give it clear limitations and ONE findable weakness that stops it for good; ordinary weapons can only drive it off.
+- Plan a staged reveal: clues show it in pieces (a sound, a mark, a photo, a partial sighting) before it's seen whole.
+- It escalates: as the countdown advances it gets bolder, gains reach, or changes once the hunters think they understand it.
+Structure:
+- 6-8 clues that, together, reveal the truth and the weakness; at least two point at the weakness from different angles.
+- A six-step countdown with these beats: Calm Before the Storm (the catalyst), Omens (the uncanny, deniable), The Plot
+  Thickens (it gets worse, someone disappears), The Horror Exposed (the threat is undeniable), Nowhere to Hide (it comes for
+  them and the people they care about), No Turning Back (the monster wins).
+- Bystanders who want things and are in the way, including one the hunters will want to save.
+Write original content only; don't copy published adventures. Reply with only JSON.`;
+
 // ---------- calls ----------
 
 export class Keeper {
@@ -264,12 +285,14 @@ Reply: {"narration": "...", ${EFFECTS_SCHEMA}}`);
   }
 
   async keeperTurn(state: GameState): Promise<KeeperReply> {
-    const next = state.countdownRound === state.round
-      ? "(already advanced this round; don't advance it again)"
-      : state.mystery.countdown[state.countdown] ?? "(final)";
+    const since = state.round - (state.countdownRound ?? 0);
+    const clock = state.countdownRound === state.round
+      ? "The countdown already advanced this round; don't advance it again."
+      : `Next countdown step: "${state.mystery.countdown[state.countdown] ?? "(final)"}". It last moved ${since} round(s) ago. ` +
+        `Aim for roughly one step every 1-2 rounds: advance it now if it has been 2+ rounds, or if the hunters lost ` +
+        `time or a miss let the threat grow; hold it if the hunters are pressing the threat hard right now.`;
     const raw = await this.#ask(state, `Every hunter has acted this round. Take the keeper's turn: the monster, minions, or ` +
-      `bystanders act; the world moves. Consider the next countdown step ("${next}"): advance it if the threat has ` +
-      `grown or the hunters lost time. Then frame the situation for the next round and ask what they do. 60-140 words. ` +
+      `bystanders act; the world moves. ${clock} Then frame the situation for the next round and ask what they do. 60-140 words. ` +
       `Reply: {"narration": "...", ${EFFECTS_SCHEMA}}`);
     return parseReply(state, raw, 0);
   }
@@ -307,13 +330,13 @@ Reply: {"narration": "...", ${EFFECTS_SCHEMA}}`);
         role: "gm",
         maxTokens: 2500,
         messages: [
-          { role: "system", content: "You design one-session monster-hunting mysteries for a Monster of the Week style game: a small American town, one monster with a clear motive and a findable weakness, bystanders in danger, and a six-step countdown. Original content only. Reply with only JSON." },
+          { role: "system", content: MYSTERY_DESIGN },
           { role: "user", content: `Design a mystery${idea ? ` inspired by: ${idea}` : ""}. Shape:\n${shape}${lastErrors.length ? `\nYour last attempt had problems: ${lastErrors.join("; ")}` : ""}` },
         ],
       });
       state.costUsd += costUsd;
       const parsed = parseMystery(data, `generated-${Date.now().toString(36)}`);
-      if ("mystery" in parsed) return parsed.mystery;
+      if ("mystery" in parsed) return { ...parsed.mystery, credits: SOURCE_CREDITS };
       lastErrors = parsed.errors;
     }
     throw new Error(`Couldn't build a usable mystery (${lastErrors.join("; ")}).`);

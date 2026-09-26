@@ -2,7 +2,8 @@ import { randomInt } from "node:crypto";
 import type { RandomInt } from "../domain/dice.js";
 import type { GameIO } from "./game.js";
 import type { Keeper } from "./keeper.js";
-import { BUILT_IN_MYSTERIES, type Mystery } from "./mystery.js";
+import type { Mystery } from "./mystery.js";
+import { BUILT_IN_MYSTERIES } from "./mysteries/index.js";
 import { PLAYBOOKS, type Playbook } from "./playbooks.js";
 import { MAX_LUCK, STATS, type Stats } from "./rules.js";
 import { newGame, type GameState, type Hunter } from "./state.js";
@@ -73,7 +74,10 @@ async function askNumber(io: GameIO, prompt: string, min: number, max: number, f
 export class SetupCancelled extends Error {}
 
 async function chooseMystery(io: GameIO, keeper: Keeper, costs: { costUsd: number }): Promise<Mystery> {
-  const options = [...BUILT_IN_MYSTERIES.map((m) => m.title), "Surprise me: the AI writes a brand-new mystery"];
+  const options = [
+    ...BUILT_IN_MYSTERIES.map((m) => `${m.title}: ${m.pitch ?? ""}${m.warnings?.length ? ` [${m.warnings.join(", ")}]` : ""}`),
+    "Surprise me: the AI writes a brand-new mystery",
+  ];
   const choice = await io.choose("Which mystery?", options);
   const builtIn = BUILT_IN_MYSTERIES[choice];
   if (builtIn) return builtIn;

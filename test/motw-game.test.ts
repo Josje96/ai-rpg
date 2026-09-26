@@ -203,3 +203,17 @@ test("the keeper sees the clues the hunters already have", async () => {
   await new Game(state, { keeper, model, io: new ScriptIO(["look", "/quit"]), save: async () => {} }).run();
   assert.match(model.calls[1]!.messages[1]!.content, /ALREADY HAVE[^\n]*\n- The light is a lantern/);
 });
+
+test("the keeper is told how long the clock has been still", async () => {
+  const quiet = { roll: null, narration: "...", effects: {} };
+  const model = new FakeModel({
+    gm: [{ narration: "Night.", effects: {} }, quiet, { narration: "K1.", effects: {} }, quiet, { narration: "K2.", effects: {} }],
+    player: [],
+  });
+  const keeper = new Keeper(model);
+  const state = await setupGame(new ScriptIO(["1", "1", "Joe", "1", "Ada", "", "y", "0"]), keeper, scriptedRandom([]));
+  await new Game(state, { keeper, model, io: new ScriptIO(["look", "look", "/quit"]), save: async () => {} }).run();
+  const keeperTurns = model.calls.filter((c) => c.messages[1]!.content.includes("Every hunter has acted"));
+  assert.match(keeperTurns[0]!.messages[1]!.content, /last moved 1 round\(s\) ago/);
+  assert.match(keeperTurns[1]!.messages[1]!.content, /last moved 2 round\(s\) ago/);
+});

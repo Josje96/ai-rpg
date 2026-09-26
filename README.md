@@ -15,12 +15,25 @@ npm run play
 
 Needs `OPENROUTER_API_KEY` in `.env` (see `.env.example`). A session is a few cents: a six-round playtest cost about $0.02.
 
-- **Setup:** pick a mystery (the hand-written *The Lantern at Mercy Lake*, or have the AI write a new one), say how many people are at the device, and each person builds a hunter. Choose from six original hunter types, step by step or quick-built at random. AI hunters fill out the team.
+- **Setup:** pick a mystery (one of six hand-written ones below, or have the AI write a new one), say how many people are at the device, and each person builds a hunter. Choose from six original hunter types, step by step or quick-built at random. AI hunters fill out the team.
 - **Turns:** each hunter acts once per round, then the Keeper moves the monster and the world. On your turn, type what your hunter does in plain words. The Keeper decides if it triggers a move; **the engine rolls the dice** (2d6 + stat: 10+ strong hit, 7-9 hit with a cost, 6- miss and +1 XP) and tracks harm, Luck, XP, clues and the countdown.
 - **Luck** (7 each) turns a roll into a 12 or cancels incoming harm; you're asked when it matters.
 - **Win** by finding the monster's weakness through clues and using it before the six-step countdown runs out.
 - **Commands:** `/sheet`, `/party`, `/clues`, `/recap`, `/ask <question>` (out of character), `/rules`, `/pass`, `/save`, `/quit`.
 - **Saves** happen after every turn (`~/.local/share/tabletop-ai/saves`). Ctrl-C, Ctrl-D or a dropped SSH connection saves too; `npm run play` offers to continue.
+
+### Mysteries
+
+| Mystery | Pitch | Built on |
+| --- | --- | --- |
+| The Lantern at Mercy Lake | A drowned ferryman's lantern calls grieving townsfolk into the lake. | original |
+| Mannequin Season | A dying mall's window displays are getting new, very lifelike staff. | Liminal Horror: Puppets |
+| Silver Threads | The dead walk out of a funeral home; the men in black suits want no witnesses. | Liminal Horror: Goloch, the Bureau |
+| Low Signal | After a tech-campus "accident", the town's shadows came loose. | Liminal Horror: Shades, Panopticon |
+| Sweetwater | A reservoir town's founders have fed something under the dam for a century. | Liminal Horror: Frog-Men, Dead Gods |
+| The County Fair | Gremlins wreck the fair, chasing a carnie's lucky charm. Lighter tone. | Liminal Horror: Gremlins |
+
+Each mystery shows content warnings in the menu. "Surprise me" asks the Keeper model to write a new one, guided by monster-design advice from the Fate Horror Toolkit and Liminal Horror's Doom Clock. In-game `/credits` shows attribution; see [`SRD_ATTRIBUTION.md`](SRD_ATTRIBUTION.md). To playtest one live: `npm run playtest -- <menu number>`.
 
 ### How the AI is kept honest
 
