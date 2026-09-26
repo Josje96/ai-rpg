@@ -1,0 +1,40 @@
+import type { RpgSystemAdapter } from "./adapter.js";
+import { dnd5e2014Adapter } from "./dnd5e-2014.js";
+import { shadowrunAnarchy2Adapter } from "./shadowrun-anarchy-2.js";
+import { fateCondensedAdapter } from "./fate-condensed.js";
+import { bladesInTheDarkAdapter } from "./blades-in-the-dark.js";
+import { pathfinder2RemasterAdapter } from "./pathfinder2-remaster.js";
+import { cairn2Adapter } from "./cairn-2e.js";
+import { basicRoleplayingAdapter } from "./basic-roleplaying.js";
+
+/** Explicit registry; game-specific adapters can be plugged in as they are implemented. */
+export class RpgSystemRegistry {
+  readonly #systems = new Map<string, RpgSystemAdapter>();
+
+  register(adapter: RpgSystemAdapter): void {
+    if (this.#systems.has(adapter.id)) {
+      throw new Error(`RPG system already registered: ${adapter.id}`);
+    }
+    this.#systems.set(adapter.id, adapter);
+  }
+
+  list(): readonly RpgSystemAdapter[] {
+    return [...this.#systems.values()];
+  }
+
+  get(id: string): RpgSystemAdapter | undefined {
+    return this.#systems.get(id);
+  }
+}
+
+export function createDefaultRpgRegistry(): RpgSystemRegistry {
+  const registry = new RpgSystemRegistry();
+  registry.register(dnd5e2014Adapter);
+  registry.register(shadowrunAnarchy2Adapter);
+  registry.register(fateCondensedAdapter);
+  registry.register(bladesInTheDarkAdapter);
+  registry.register(pathfinder2RemasterAdapter);
+  registry.register(cairn2Adapter);
+  registry.register(basicRoleplayingAdapter);
+  return registry;
+}
