@@ -1,4 +1,5 @@
 import type { Mystery } from "../mystery.js";
+import { MANNEQUIN_SEASON_ART } from "./art.js";
 import { SOURCE_CREDITS } from "./credits.js";
 
 /** Built on Liminal Horror's Puppets (flesh over mannequins, thrown voices, self-repair with tools and flesh). */
@@ -7,6 +8,7 @@ export const MANNEQUIN_SEASON: Mystery = {
   title: "Mannequin Season",
   pitch: "A dying mall's window displays are getting new, very lifelike staff.",
   warnings: ["body horror", "skinning", "people going missing"],
+  art: MANNEQUIN_SEASON_ART,
   credits: SOURCE_CREDITS,
   hook:
     "Harwick Mall has two weeks left before the wrecking ball. Everything must go: 70% off, fixtures for sale, the " +

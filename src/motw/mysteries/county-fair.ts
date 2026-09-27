@@ -1,4 +1,5 @@
 import type { Mystery } from "../mystery.js";
+import { COUNTY_FAIR_ART } from "./art.js";
 import { SOURCE_CREDITS } from "./credits.js";
 
 /** Built on Liminal Horror's Gremlins (machine saboteurs who covet shiny things) and resonant artifacts. Lighter in tone. */
@@ -7,6 +8,7 @@ export const COUNTY_FAIR: Mystery = {
   title: "The County Fair",
   pitch: "Gremlins are wrecking the Pike County Fair, and they're after one lucky carnie's charm. (Lighter tone.)",
   warnings: ["finger biting", "machinery accidents"],
+  art: COUNTY_FAIR_ART,
   credits: SOURCE_CREDITS,
   hook:
     "The Pike County Fair: funnel cakes, a demolition derby, a prize-goat competition, and the tallest Ferris wheel " +

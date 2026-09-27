@@ -25,6 +25,8 @@ export type Mystery = {
   pitch?: string;
   /** Content warnings, shown before choosing. */
   warnings?: readonly string[];
+  /** Title art shown when the hunt starts (plain ASCII, at most 40 columns). */
+  art?: string;
   /** License attributions for material this mystery draws on. */
   credits?: readonly string[];
   /** Read aloud to the players at the start. */

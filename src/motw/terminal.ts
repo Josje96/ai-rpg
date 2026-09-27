@@ -64,6 +64,12 @@ export class TerminalIO implements GameIO {
   show(kind: Parameters<GameIO["show"]>[0], text: string, who?: string): void {
     const w = this.#width;
     switch (kind) {
+      case "art": {
+        const lines = text.replace(/^\n+|\s+$/g, "").split("\n");
+        // Skip rather than wrap: wrapped ASCII art is just noise.
+        if (Math.max(...lines.map((l) => l.length)) <= w) this.#print("\n" + yellow(lines.join("\n")));
+        break;
+      }
       case "heading": this.#print("\n" + bold(`== ${text} ==`)); break;
       case "keeper": this.#print("\n" + wrap(`${cyan("Keeper:")} ${text}`, w + (useColor ? 9 : 0))); break;
       case "hunter": this.#print("\n" + wrap(`${yellow(`${who ?? "Hunter"}:`)} ${text}`, w + (useColor ? 9 : 0))); break;

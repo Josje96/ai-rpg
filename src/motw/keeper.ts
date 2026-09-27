@@ -1,5 +1,6 @@
 import type { ChatMessage, ModelClient } from "../ai/provider.js";
 import { COUNTDOWN_LENGTH, parseMystery, type Mystery } from "./mystery.js";
+import { GENERIC_ART } from "./mysteries/art.js";
 import { SOURCE_CREDITS } from "./mysteries/credits.js";
 import { playbook } from "./playbooks.js";
 import { BASIC_MOVES, STATS, basicMove, describeRoll, harmStatus, type BasicMoveId, type MoveRoll, type Stat } from "./rules.js";
@@ -336,7 +337,7 @@ Reply: {"narration": "...", ${EFFECTS_SCHEMA}}`);
       });
       state.costUsd += costUsd;
       const parsed = parseMystery(data, `generated-${Date.now().toString(36)}`);
-      if ("mystery" in parsed) return { ...parsed.mystery, credits: SOURCE_CREDITS };
+      if ("mystery" in parsed) return { ...parsed.mystery, art: GENERIC_ART, credits: SOURCE_CREDITS };
       lastErrors = parsed.errors;
     }
     throw new Error(`Couldn't build a usable mystery (${lastErrors.join("; ")}).`);

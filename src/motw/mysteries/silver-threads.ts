@@ -1,4 +1,5 @@
 import type { Mystery } from "../mystery.js";
+import { SILVER_THREADS_ART } from "./art.js";
 import { SOURCE_CREDITS } from "./credits.js";
 
 /** Built on Liminal Horror's Goloch (corpse-puppeting parasites) and the Bureau (a government cleanup agency). */
@@ -7,6 +8,7 @@ export const SILVER_THREADS: Mystery = {
   title: "Silver Threads",
   pitch: "The dead are walking out of a small-town funeral home, and the men in black suits want no witnesses.",
   warnings: ["corpses", "parasites", "government violence"],
+  art: SILVER_THREADS_ART,
   credits: SOURCE_CREDITS,
   hook:
     "Pell's Crossing, Kentucky: one stoplight, one diner, one funeral home. In three weeks, three bodies have gone " +

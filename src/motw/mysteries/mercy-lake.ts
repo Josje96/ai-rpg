@@ -1,10 +1,12 @@
 import type { Mystery } from "../mystery.js";
+import { MERCY_LAKE_ART } from "./art.js";
 
 export const MERCY_LAKE: Mystery = {
   id: "mercy-lake",
   title: "The Lantern at Mercy Lake",
   pitch: "A drowned ferryman's lantern calls grieving townsfolk into the lake.",
   warnings: ["drowning", "grief"],
+  art: MERCY_LAKE_ART,
   hook:
     "Mercy Lake, late October. Three people have drowned in two weeks, all on calm nights. Each was last seen walking " +
     "into the water toward a small green light out past the dock. The town calls it grief, or drink. The one survivor, " +

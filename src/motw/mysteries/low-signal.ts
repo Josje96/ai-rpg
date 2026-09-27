@@ -1,4 +1,5 @@
 import type { Mystery } from "../mystery.js";
+import { LOW_SIGNAL_ART } from "./art.js";
 import { SOURCE_CREDITS } from "./credits.js";
 
 /** Built on Liminal Horror's Shades (death shadows, harmable only in bright light) and Panopticon (a sinister corporation). */
@@ -7,6 +8,7 @@ export const LOW_SIGNAL: Mystery = {
   title: "Low Signal",
   pitch: "After an 'accident' at a tech campus, the town's shadows came loose, and they're hungry.",
   warnings: ["blackouts", "corporate cover-up", "freezing deaths"],
+  art: LOW_SIGNAL_ART,
   credits: SOURCE_CREDITS,
   hook:
     "Marrow Falls, Oregon, is a mill town that got lucky: Panopticon built its Lumen Park research campus on the old " +

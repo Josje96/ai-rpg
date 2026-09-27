@@ -46,3 +46,17 @@ test("choose re-asks until it gets a valid number", async () => {
 test("wraps to narrow phone widths with a hanging indent", () => {
   assert.equal(wrap("the quick brown fox jumps", 11, "  "), "the quick\n  brown fox\n  jumps");
 });
+
+test("art prints as-is when it fits and is skipped when the screen is too narrow", () => {
+  for (const [columns, shown] of [[80, true], [30, false]] as const) {
+    const input = new PassThrough();
+    const output = new PassThrough() as PassThrough & { columns?: number };
+    output.columns = columns;
+    let text = "";
+    output.on("data", (d) => { text += String(d); });
+    const t = new TerminalIO(input as never, output as never);
+    t.show("art", "\n   /\\\n  /  \\   a mountain that is exactly this wide\n");
+    assert.equal(text.includes("   /\\\n  /  \\"), shown, `columns ${columns}`);
+    t.close();
+  }
+});

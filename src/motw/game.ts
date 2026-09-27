@@ -14,7 +14,7 @@ import {
 
 /** Everything the game needs from a front end. The terminal implements it; a web or Discord UI could too. */
 export interface GameIO {
-  show(kind: "keeper" | "hunter" | "roll" | "system" | "info" | "error" | "heading", text: string, who?: string): void;
+  show(kind: "keeper" | "hunter" | "roll" | "system" | "info" | "error" | "heading" | "art", text: string, who?: string): void;
   /** Resolves "/quit" if input ends (Ctrl-D, closed SSH). */
   ask(prompt: string): Promise<string>;
   choose(prompt: string, options: readonly string[]): Promise<number>;
@@ -74,6 +74,7 @@ export class Game {
   async #run(): Promise<boolean> {
     const { state, deps } = this;
     if (state.round === 0) {
+      if (state.mystery.art) deps.io.show("art", state.mystery.art);
       deps.io.show("heading", state.mystery.title);
       if (state.mystery.credits?.length) deps.io.show("system", "Uses openly licensed material; type /credits for attribution.");
       deps.io.show("info", state.mystery.hook);

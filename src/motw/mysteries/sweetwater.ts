@@ -1,4 +1,5 @@
 import type { Mystery } from "../mystery.js";
+import { SWEETWATER_ART } from "./art.js";
 import { SOURCE_CREDITS } from "./credits.js";
 
 /** Built on Liminal Horror's Frog-Men (hidden amphibian folk who want to free their master) and Dead Gods. */
@@ -7,6 +8,7 @@ export const SWEETWATER: Mystery = {
   title: "Sweetwater",
   pitch: "A reservoir town's founding families have been feeding something under the dam for a hundred years.",
   warnings: ["drowning", "cults", "body changes"],
+  art: SWEETWATER_ART,
   credits: SOURCE_CREDITS,
   hook:
     "Sweetwater, Georgia, sits above a reservoir that drowned the old town in 1924. It's a pretty place: church " +

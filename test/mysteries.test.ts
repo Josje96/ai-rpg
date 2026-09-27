@@ -16,12 +16,13 @@ test("every built-in mystery passes the same validation as generated ones, uncha
     const parsed = parseMystery(JSON.parse(JSON.stringify(m)), m.id);
     assert.ok("mystery" in parsed, `${m.id}: ${"errors" in parsed ? parsed.errors.join("; ") : ""}`);
     // validation clamps/truncates; nothing in a hand-written mystery should need it
-    const { pitch, warnings, credits, ...rest } = m;
+    const { pitch, warnings, credits, art, ...rest } = m;
     assert.deepEqual(parsed.mystery, JSON.parse(JSON.stringify(rest)), `${m.id} was altered by validation`);
     assert.ok(pitch && warnings?.length, `${m.id} needs a pitch and warnings`);
     assert.equal(m.countdown.length, 6);
     assert.ok(m.clues.length >= 8, `${m.id} has ${m.clues.length} clues`);
     void credits;
+    void art;
   }
 });
 
@@ -59,4 +60,22 @@ test("AI-written mysteries get design guidance and credits", async () => {
   assert.match(system, /staged reveal/);
   assert.match(system, /Nowhere to Hide/);
   assert.match(model.calls[0]!.messages[1]!.content, /haunted lighthouse/);
+});
+
+test("every mystery has phone-sized, plain-ASCII title art, shown when the hunt starts", async () => {
+  const { GENERIC_ART } = await import("../src/motw/mysteries/art.js");
+  for (const [id, art] of [...BUILT_IN_MYSTERIES.map((m) => [m.id, m.art] as const), ["generated", GENERIC_ART] as const]) {
+    assert.ok(art, `${id} has no art`);
+    for (const line of art.split("\n")) {
+      assert.ok(line.length <= 40, `${id}: line too wide (${line.length}): ${line}`);
+      assert.match(line, /^[\x20-\x7e]*$/, `${id}: non-ASCII character in: ${line}`);
+    }
+  }
+  const model = new FakeModel({ gm: [{ narration: "Lights.", effects: {} }], player: [] });
+  const keeper = new Keeper(model);
+  const io = new ScriptIO(["6", "1", "Joe", "1", "Ada", "", "y", "0", "/quit"]);
+  await new Game(await setupGame(io, keeper, scriptedRandom([])), { keeper, model, io, save: async () => {} }).run();
+  const first = io.shown.findIndex((s) => s.kind === "art");
+  assert.match(io.shown[first]!.text, /PIKE COUNTY FAIR/);
+  assert.equal(io.shown[first + 1]!.kind, "heading", "art comes right before the title");
 });
