@@ -1,7 +1,8 @@
 import { randomInt } from "node:crypto";
 import type { ModelClient } from "../ai/provider.js";
 import type { RandomInt } from "../domain/dice.js";
-import { aiHunterAction, type Effects, type Keeper, type KeeperReply } from "./keeper.js";
+import { aiHunterAction, weaponHarm, type Choice, type Effects, type Keeper, type KeeperReply } from "./keeper.js";
+import { COUNTDOWN_LENGTH } from "./mystery.js";
 import { countdownMeter, GENERIC_ART, outOfActionArt } from "./mysteries/art.js";
 import { effectiveRoll, playbook } from "./playbooks.js";
 import {
@@ -15,7 +16,9 @@ import {
 
 /** Everything the game needs from a front end. The terminal implements it; a web or Discord UI could too. */
 export interface GameIO {
-  show(kind: "keeper" | "hunter" | "roll" | "system" | "info" | "error" | "heading" | "art", text: string, who?: string): void;
+  show(kind: "keeper" | "hunter" | "roll" | "system" | "info" | "error" | "heading", text: string, who?: string): void;
+  /** Terminal art in several sizes, largest first; show the largest that fits, or nothing. */
+  art(variants: readonly string[]): void;
   /** Resolves "/quit" if input ends (Ctrl-D, closed SSH). */
   ask(prompt: string): Promise<string>;
   choose(prompt: string, options: readonly string[]): Promise<number>;
@@ -76,7 +79,7 @@ export class Game {
   async #run(): Promise<boolean> {
     const { state, deps } = this;
     if (state.round === 0) {
-      deps.io.show("art", this.#art.title);
+      deps.io.art(this.#art.title);
       deps.io.show("heading", state.mystery.title);
       if (state.mystery.credits?.length) deps.io.show("system", "Uses openly licensed material; type /credits for attribution.");
       deps.io.show("info", state.mystery.hook);
@@ -117,7 +120,7 @@ export class Game {
       await deps.save(state);
     }
 
-    deps.io.show("art", state.status === "won" ? this.#art.won : this.#art.lost);
+    deps.io.art(state.status === "won" ? this.#art.won : this.#art.lost);
     deps.io.show("heading", state.status === "won" ? "The monster is stopped." : "The monster wins this week.");
     deps.io.show("info", `Clues found: ${state.cluesFound.length}/${state.mystery.clues.length}. Model cost this game: $${state.costUsd.toFixed(3)}.`);
     await deps.save(state);
@@ -174,6 +177,7 @@ export class Game {
     this.#warn(adj.warnings);
     if (!adj.roll) {
       await this.#applyReply(adj);
+      await this.#handleChoice(hunter, adj.choice);
       return;
     }
     if (adj.narration) {
@@ -210,8 +214,14 @@ export class Game {
     const questions = move.questions && move.holds && roll.band !== "miss"
       ? await this.#pickQuestions(hunter, move.questions, roll.band === "strong" ? move.holds.strong : move.holds.mixed)
       : [];
+    if (questions.length) log(state, { kind: "system", text: `${hunter.name} asks: ${questions.join(" / ")}` });
     const reply = await this.#withBusy("The Keeper narrates", () => deps.keeper.resolve(state, hunter, text, move.id as BasicMoveId, roll, questions));
+    // Fights are the engine's job: a hit on the monster deals the hunter's weapon harm, whatever the Keeper remembered.
+    if (move.id === "kick-some-ass" && roll.band !== "miss" && reply.target === "monster") {
+      reply.effects = { ...reply.effects, monsterHarm: weaponHarm(hunter) };
+    }
     await this.#applyReply(reply);
+    await this.#handleChoice(hunter, reply.choice);
   }
 
   async #applyReply(reply: KeeperReply, keeperTurn = false): Promise<void> {
@@ -235,7 +245,7 @@ export class Game {
       lines.push(applyHarm(state, hunter, amount, reason));
       if (harmStatus(hunter.harm) === "out") {
         this.#flush(lines);
-        this.deps.io.show("art", outOfActionArt(hunter.name));
+        this.deps.io.art(outOfActionArt(hunter.name));
       }
     }
     for (const { hunter, amount } of effects.heal) lines.push(heal(state, hunter, amount));
@@ -243,22 +253,31 @@ export class Game {
     if ((effects.monsterRevealed || effects.monsterHarm > 0) && !state.monsterSeen) {
       state.monsterSeen = true;
       this.#flush(lines);
-      this.deps.io.show("art", this.#art.monster);
+      this.deps.io.art(this.#art.monster);
     }
-    if (effects.monsterHarm > 0) lines.push(hurtMonster(state, effects.monsterHarm));
+    if (effects.monsterHarm > 0) {
+      lines.push(hurtMonster(state, effects.monsterHarm));
+      if (!state.weaponHintShown) {
+        state.weaponHintShown = true;
+        lines.push(`Weapons can hurt ${state.mystery.monster.name} and drive it off, but never stop it for good. For that you need its weakness: follow the clues.`);
+      }
+    }
     const found = recordClues(state, effects.clues);
     if (found.length) lines.push(...found.map((c) => `Clue: ${c}`));
     if (effects.weaknessDiscovered && !state.weaknessKnown) {
       state.weaknessKnown = true;
       log(state, { kind: "system", text: "The hunters know how to stop it." });
       this.#flush(lines);
-      this.deps.io.show("art", this.#art.weakness);
+      this.deps.io.art(this.#art.weakness);
       lines.push("You know how to stop it now.");
     }
     if (effects.countdown && state.status === "active") {
       if (countdownAllowed(state, keeperTurn)) {
         lines.push(advanceCountdown(state));
         lines.push(`Clock ${countdownMeter(state.countdown, state.mystery.countdown)}`);
+        if (state.countdown === COUNTDOWN_LENGTH - 1) {
+          lines.push("One step left. If the clock moves again, the monster wins. Stop it now.");
+        }
       }
       else this.#warn(["countdown advance ignored: pacing (once per round; final step only on the keeper's turn)"]);
     }
@@ -287,6 +306,20 @@ export class Game {
   }
 
   // ---------- choices ----------
+
+  /** The Keeper offered the acting hunter a choice; that same player answers before the turn passes. */
+  async #handleChoice(hunter: Hunter, choice: Choice | null): Promise<void> {
+    const { state, deps } = this;
+    if (!choice || state.status !== "active" || harmStatus(hunter.harm) === "out") return;
+    const index = hunter.controller.kind === "human"
+      ? await deps.io.choose(`${hunter.name}: ${choice.prompt}`, choice.options)
+      : this.#random(0, choice.options.length);
+    const picked = choice.options[index]!;
+    log(state, { kind: "hunter", who: hunter.name, text: `(chooses) ${picked}` });
+    deps.io.show("hunter", `(chooses) ${picked}`, hunter.name);
+    const reply = await this.#withBusy("The Keeper narrates", () => deps.keeper.followUp(state, hunter, choice, picked));
+    await this.#applyReply(reply);
+  }
 
   async #wantsLuckForRoll(hunter: Hunter, band: "mixed" | "miss"): Promise<boolean> {
     if (hunter.controller.kind === "ai") return band === "miss" && hunter.luck >= 5;

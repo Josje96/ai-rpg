@@ -62,23 +62,32 @@ test("AI-written mysteries get design guidance and credits", async () => {
   assert.match(model.calls[0]!.messages[1]!.content, /haunted lighthouse/);
 });
 
-test("every mystery has all five pieces of phone-sized, plain-ASCII art", async () => {
-  const { GENERIC_ART, outOfActionArt } = await import("../src/motw/mysteries/art.js");
+test("every mystery has all five pieces of art in two sizes, plain ASCII", async () => {
+  const { GENERIC_ART, outOfActionArt, ART_KEYS, SMALL_WIDTH, LARGE_WIDTH } = await import("../src/motw/mysteries/art.js");
   const sets = [...BUILT_IN_MYSTERIES.map((m) => [m.id, m.art] as const), ["generated", GENERIC_ART] as const];
+  const check = (label: string, text: string, max: number) => {
+    assert.ok(text.trim(), `${label} is empty`);
+    for (const line of text.split("\n")) {
+      assert.ok(line.length <= max, `${label}: line too wide (${line.length} > ${max}): ${line}`);
+      assert.match(line, /^[\x20-\x7e]*$/, `${label}: non-ASCII character in: ${line}`);
+    }
+  };
   for (const [id, art] of sets) {
     assert.ok(art, `${id} has no art`);
-    for (const key of ["title", "monster", "weakness", "won", "lost"] as const) {
-      assert.ok(art[key].trim(), `${id}.${key} is empty`);
-      for (const line of art[key].split("\n")) {
-        assert.ok(line.length <= 40, `${id}.${key}: line too wide (${line.length}): ${line}`);
-        assert.match(line, /^[\x20-\x7e]*$/, `${id}.${key}: non-ASCII character in: ${line}`);
-      }
+    for (const key of ART_KEYS) {
+      const [large, small] = art[key];
+      check(`${id}.${key} (large)`, large!, LARGE_WIDTH);
+      check(`${id}.${key} (small)`, small!, SMALL_WIDTH);
+      const widest = (t: string) => Math.max(...t.split("\n").map((l) => l.trimEnd().length));
+      assert.ok(widest(large!) > widest(small!), `${id}.${key}: the large version isn't larger`);
     }
   }
   for (const name of ["Al", "Marisol Quint", "Bartholomew Featherstonehaugh"]) {
-    const card = outOfActionArt(name);
-    assert.ok(card.split("\n").every((l) => l.length <= 40), name);
-    assert.equal(new Set(card.split("\n").filter((l) => l.includes("|")).map((l) => l.lastIndexOf("|"))).size, 1, `${name}: tombstone edge is ragged`);
+    for (const [card, max] of outOfActionArt(name).map((c, i) => [c, i === 0 ? LARGE_WIDTH : SMALL_WIDTH] as const)) {
+      check(`tombstone ${name}`, card, max);
+      const edges = card.split("\n").filter((l) => /\|\s*$/.test(l) && !l.includes("_|_")).map((l) => l.trimEnd().length);
+      assert.equal(new Set(edges).size, 1, `${name}: tombstone edge is ragged:\n${card}`);
+    }
   }
 });
 
@@ -89,5 +98,6 @@ test("title art comes right before the title when a hunt starts", async () => {
   await new Game(await setupGame(io, keeper, scriptedRandom([])), { keeper, model, io, save: async () => {} }).run();
   const first = io.shown.findIndex((x) => x.kind === "art");
   assert.match(io.shown[first]!.text, /PIKE COUNTY FAIR/);
+  assert.match(io.arts[0]![0]!, /P I K E   C O U N T Y   F A I R/, "the large version is offered first");
   assert.equal(io.shown[first + 1]!.kind, "heading");
 });

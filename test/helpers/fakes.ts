@@ -29,6 +29,12 @@ export class ScriptIO implements GameIO {
   show(kind: string, text: string, who?: string): void {
     this.shown.push(who === undefined ? { kind, text } : { kind, text, who });
   }
+  /** Every art call, all sizes (largest first). Also recorded in `shown` as kind "art" with the small size. */
+  readonly arts: (readonly string[])[] = [];
+  art(variants: readonly string[]): void {
+    this.arts.push(variants);
+    this.shown.push({ kind: "art", text: variants.at(-1) ?? "" });
+  }
   async ask(prompt: string): Promise<string> {
     this.prompts.push(prompt);
     const next = this.answers.shift();

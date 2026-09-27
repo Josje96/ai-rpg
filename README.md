@@ -20,7 +20,7 @@ Needs `OPENROUTER_API_KEY` in `.env` (see `.env.example`). A session is a few ce
 - **Luck** (7 each) turns a roll into a 12 or cancels incoming harm; you're asked when it matters.
 - **Win** by finding the monster's weakness through clues and using it before the six-step countdown runs out.
 - **Commands:** `/sheet`, `/party`, `/clues`, `/clock`, `/recap`, `/ask <question>` (out of character), `/rules`, `/credits`, `/pass`, `/save`, `/quit`.
-- **Terminal art** marks the key moments: each story's title, the monster's first clear appearance, discovering its weakness, a hunter going out of action, and a win or loss screen. A clock meter (`[###---] The Plot Thickens`) shows whenever the countdown moves. Art is plain ASCII, at most 40 columns, and is skipped on screens too narrow for it.
+- **Terminal art** marks the key moments: each story's title, the monster's first clear appearance, discovering its weakness, a hunter going out of action, and a win or loss screen. A clock meter (`[###---] The Plot Thickens`) shows whenever the countdown moves. Every piece comes in two sizes (up to 72 and 40 columns); the terminal shows the largest that fits, centered. Plain ASCII.
 - **Saves** happen after every turn (`~/.local/share/tabletop-ai/saves`). Ctrl-C, Ctrl-D or a dropped SSH connection saves too; `npm run play` offers to continue.
 
 ### Mysteries
@@ -38,7 +38,7 @@ Each mystery shows content warnings in the menu. "Surprise me" asks the Keeper m
 
 ### How the AI is kept honest
 
-The Keeper (GM model) only *proposes*: every reply is JSON that the engine validates before it touches the game. Harm is clamped (at most 4 per hit, monster damage capped by the hunter's weapon); unknown hunters are ignored; it can't declare victory before the weakness is found. It never rolls dice. **Pacing is engine-enforced:** at most one countdown step per round, and the final step (the monster winning) only on the Keeper's own turn, so one bad roll can't end the game. AI hunters are played by a cheaper model that never sees the Keeper's secrets. Run with `DEBUG=1` to see when the engine overrides the Keeper.
+The Keeper (GM model) only *proposes*: every reply is JSON that the engine validates before it touches the game. Harm is clamped (at most 4 per hit, monster damage capped by the hunter's weapon); unknown hunters are ignored; it can't declare victory before the weakness is found. It never rolls dice, and weapon damage on the monster comes from the hunter's sheet, not the Keeper's memory. When the Keeper offers a choice (a mixed hit's hard choice, a strong hit's edge), the acting player answers from numbered options before the turn passes. **Pacing is engine-enforced:** at most one countdown step every two rounds (a full mystery is 11+ rounds, about an hour), a warning when one step is left, and the final step only on the Keeper's own turn, so one bad roll can't end the game. AI hunters are played by a cheaper model that never sees the Keeper's secrets. Run with `DEBUG=1` to see when the engine overrides the Keeper.
 
 ### About the rules text
 

@@ -4,7 +4,7 @@ import { GENERIC_ART } from "./mysteries/art.js";
 import { SOURCE_CREDITS } from "./mysteries/credits.js";
 import { playbook } from "./playbooks.js";
 import { BASIC_MOVES, STATS, basicMove, describeRoll, harmStatus, type BasicMoveId, type MoveRoll, type Stat } from "./rules.js";
-import { activeHunters, type GameState, type Hunter, type LogEntry } from "./state.js";
+import { activeHunters, countdownAllowed, type GameState, type Hunter, type LogEntry } from "./state.js";
 
 /**
  * The keeper (AI GM) proposes; the engine disposes. Every reply is a JSON object that is validated and clamped here
@@ -26,12 +26,18 @@ export const NO_EFFECTS: Effects = {
   harm: [], heal: [], monsterHarm: 0, clues: [], countdown: false, weaknessDiscovered: false, monsterRevealed: false, outcome: null,
 };
 
-export type KeeperReply = { narration: string; effects: Effects; warnings: string[] };
+export type Choice = { prompt: string; options: string[] };
+export type KeeperReply = { narration: string; effects: Effects; warnings: string[]; choice: Choice | null };
+/** What a Kick some ass hit landed on; the engine applies weapon harm to the monster itself. */
+export type Target = "monster" | "minion" | "other";
+export type Resolution = KeeperReply & { target: Target };
 export type Adjudication = KeeperReply & { roll: { move: BasicMoveId; stat: Stat; why: string } | null };
 
 const RECENT_ENTRIES = 16;
 
 // ---------- prompts ----------
+
+const CHOICE_SCHEMA = `"choice": null or {"prompt": "a choice for the acting hunter", "options": ["2-4 short options"]}`;
 
 const EFFECTS_SCHEMA = `"effects": {
     "harm": [{"hunter": "<hunter id>", "amount": 1-4, "reason": "short"}],
@@ -78,14 +84,22 @@ How to keep:
 - Set "outcome": "won" only when the hunters actually use the weakness to stop the monster for good.
 - Humans are playing some hunters. Never decide what a human's hunter says, thinks, or does; describe the world
   and ask what they do. Don't end on a question to a specific AI hunter; the engine handles turns.
+- A hunter's declared action is what they attempt, even if it's reckless, cruel, or foolish. Never swap it for a
+  different, wiser action; the dice decide how well it goes, not what they tried. Consequences follow in the fiction.
+- Call hunters by their hunter names. Players may call each other by their own names; that's fine.
+- When the acting hunter must choose (a mixed hit's hard choice, a strong hit's edge), don't ask in the narration:
+  stop the narration at the moment of choice and put the options in "choice". The engine asks that player at once.
+- Keep the mystery moving: hunters can only win with clues. On investigation and reading hits, answer with concrete
+  facts that match clues from the secret list they don't have yet, and put those in "clues". Point them at places
+  and people that hold more.
 Reply with only a JSON object.`;
 }
 
 function hunterLine(h: Hunter): string {
   const book = playbook(h.playbook);
   const stats = STATS.map((s) => `${s} ${h.stats[s] >= 0 ? "+" : ""}${h.stats[s]}`).join(", ");
-  const moves = (book?.moves ?? []).filter((m) => h.moves.includes(m.id)).map((m) => `${m.name}: ${m.text}`).join(" | ");
-  const who = h.controller.kind === "human" ? `human player ${h.controller.player}` : `AI-played (${h.controller.personality})`;
+  const moves = (book?.moves ?? []).filter((m) => h.moves.includes(m.id)).map((m) => `${m.name}: ${m.text.replace(/\.$/, "")}`).join(" | ");
+  const who = h.controller.kind === "human" ? `played by human ${h.controller.player}` : `AI-played (${h.controller.personality})`;
   const gear = h.gear.map((g) => `${g.name} (${g.harm}-harm ${g.tags.join("/")})`).join(", ");
   const pronouns = h.pronouns ? ` (${h.pronouns})` : "";
   return `- id "${h.id}": ${h.name}${pronouns}, ${book?.name ?? h.playbook}, ${who}. Stats: ${stats}. Moves: ${moves}. Gear: ${gear}. Harm ${h.harm}/7 (${harmStatus(h.harm)}), Luck ${h.luck}.`;
@@ -195,12 +209,27 @@ export function parseEffects(state: GameState, raw: unknown, opts: { maxMonsterH
   };
 }
 
+export function parseChoice(raw: unknown): Choice | null {
+  const o = asObj(raw);
+  const prompt = asStr(o.prompt, 240);
+  const options = (Array.isArray(o.options) ? o.options : []).map((x) => asStr(x, 140)).filter(Boolean).slice(0, 4);
+  return prompt && options.length >= 2 ? { prompt, options } : null;
+}
+
 function parseReply(state: GameState, raw: unknown, maxMonsterHarm: number): KeeperReply {
   const o = asObj(raw);
   const narration = asStr(o.narration, 2000);
   const { effects, warnings } = parseEffects(state, o.effects, { maxMonsterHarm });
   if (!narration) warnings.push("empty narration");
-  return { narration: narration || "The Keeper pauses, considering. (Try describing your action again.)", effects, warnings };
+  return {
+    narration: narration || "The Keeper pauses, considering. (Try describing your action again.)",
+    effects, warnings, choice: parseChoice(o.choice),
+  };
+}
+
+/** The harm a hunter deals: their best weapon. */
+export function weaponHarm(hunter: Hunter): number {
+  return Math.max(1, ...hunter.gear.map((g) => g.harm));
 }
 
 /** Best weapon harm +1 (a strong hit's extra-harm edge): the most a hunter can deal in one exchange. */
@@ -224,7 +253,10 @@ export function parseAdjudication(state: GameState, hunter: Hunter, raw: unknown
     }
   }
   const reply = parseReply(state, o, roll ? 0 : maxHarmFor(hunter));
-  if (roll) reply.effects = { ...NO_EFFECTS }; // effects come after the dice, in resolve()
+  if (roll) {
+    reply.effects = { ...NO_EFFECTS }; // effects and choices come after the dice, in resolve()
+    reply.choice = null;
+  }
   return { ...reply, roll, warnings: [...warnings, ...reply.warnings] };
 }
 
@@ -267,6 +299,7 @@ export class Keeper {
     const reply = parseReply(state, raw, 0);
     // The clock starts after the hunters get a chance to act.
     reply.effects = { ...reply.effects, countdown: false, outcome: null };
+    reply.choice = null;
     return reply;
   }
 
@@ -274,31 +307,56 @@ export class Keeper {
     const raw = await this.#ask(state, `${hunter.name} (id "${hunter.id}") does this: "${action}"
 Decide whether this triggers a basic move.
 - If it does: {"roll": {"move": "<move id>", "why": "short"}, "narration": "one short line setting up the roll, no outcome"}
-- If it doesn't: {"roll": null, "narration": "what happens", ${EFFECTS_SCHEMA}}`);
+- If it doesn't: {"roll": null, "narration": "what happens", ${EFFECTS_SCHEMA}, ${CHOICE_SCHEMA}}`);
     return parseAdjudication(state, hunter, raw);
   }
 
-  async resolve(state: GameState, hunter: Hunter, action: string, move: BasicMoveId, roll: MoveRoll, questions: string[]): Promise<KeeperReply> {
+  async resolve(state: GameState, hunter: Hunter, action: string, move: BasicMoveId, roll: MoveRoll, questions: string[]): Promise<Resolution> {
     const m = basicMove(move)!;
-    const asked = questions.length ? `\nThey asked: ${questions.map((q) => `"${q}"`).join(", ")}. Answer each truthfully in the narration, in the fiction.` : "";
+    const asked = questions.length
+      ? `\nThey asked: ${questions.map((q) => `"${q}"`).join(", ")}. Answer each with a concrete fact from the secret mystery, in the fiction, and add the matching clues.`
+      : "";
+    const fight = move === "kick-some-ass"
+      ? `\nSay what the attack landed on in "target": "monster" (the monster itself), "minion", or "other". The engine applies ` +
+        `${hunter.name}'s weapon harm to the monster on a hit, so leave monsterHarm at 0. On a strong hit, offer the edge ` +
+        `(extra harm / take less harm / force it somewhere) as a "choice".`
+      : "";
     const raw = await this.#ask(state, `${hunter.name} (id "${hunter.id}") tried: "${action}"
-Move: ${m.name}. Result: ${describeRoll(roll)}. ${roll.band === "strong" ? m.strong : roll.band === "mixed" ? m.mixed : "Miss: make a hard move."}${asked}
-Narrate the outcome and apply its consequences. If they hurt the monster, put their weapon's harm in monsterHarm.
-Reply: {"narration": "...", ${EFFECTS_SCHEMA}}`);
-    return parseReply(state, raw, maxHarmFor(hunter));
+Move: ${m.name}. Result: ${describeRoll(roll)}. ${roll.band === "strong" ? m.strong : roll.band === "mixed" ? m.mixed : "Miss: make a hard move."}${asked}${fight}
+Narrate the outcome of exactly what they tried, and apply its consequences.
+Reply: {"narration": "...", ${EFFECTS_SCHEMA}, ${CHOICE_SCHEMA}${move === "kick-some-ass" ? ', "target": "monster" | "minion" | "other"' : ""}}`);
+    const o = asObj(raw);
+    const reply = parseReply(state, raw, move === "kick-some-ass" ? 0 : maxHarmFor(hunter));
+    const target: Target = o.target === "monster" || o.target === "minion" ? o.target : "other";
+    return { ...reply, target };
+  }
+
+  /** The acting hunter picked an option from a choice; narrate what follows. */
+  async followUp(state: GameState, hunter: Hunter, choice: Choice, picked: string): Promise<KeeperReply> {
+    const raw = await this.#ask(state, `${hunter.name} (id "${hunter.id}") was asked: "${choice.prompt}" and chose: "${picked}".
+Narrate what follows from that choice in 30-80 words and apply its consequences. If they chose extra harm, set monsterHarm 1.
+Reply: {"narration": "...", ${EFFECTS_SCHEMA}}`, 600);
+    const reply = parseReply(state, raw, 1);
+    reply.choice = null;
+    return reply;
   }
 
   async keeperTurn(state: GameState): Promise<KeeperReply> {
     const since = state.round - (state.countdownRound ?? 0);
-    const clock = state.countdownRound === state.round
-      ? "The countdown already advanced this round; don't advance it again."
-      : `Next countdown step: "${state.mystery.countdown[state.countdown] ?? "(final)"}". It last moved ${since} round(s) ago. ` +
-        `Aim for roughly one step every 1-2 rounds: advance it now if it has been 2+ rounds, or if the hunters lost ` +
-        `time or a miss let the threat grow; hold it if the hunters are pressing the threat hard right now.`;
+    const allowed = countdownAllowed(state, true);
+    const next = state.mystery.countdown[state.countdown] ?? "(final)";
+    const clock = !allowed
+      ? "The countdown can't move this round (the engine allows one step every two rounds)."
+      : state.countdown + 1 >= COUNTDOWN_LENGTH
+        ? `The next countdown step is the LAST: "${next}". Only advance it if the hunters are not actively stopping the monster right now.`
+        : `Next countdown step: "${next}". ${state.countdownRound === undefined ? "It hasn't moved yet" : `It last moved ${since} round(s) ago`}; advance it if time has passed or the threat has grown.`;
     const raw = await this.#ask(state, `Every hunter has acted this round. Take the keeper's turn: the monster, minions, or ` +
-      `bystanders act; the world moves. ${clock} Then frame the situation for the next round and ask what they do. 60-140 words. ` +
+      `bystanders act; the world moves. ${clock} Then frame the situation for the next round, naming at least one concrete ` +
+      `lead (a place or person) that holds a clue the hunters don't have yet, and ask what they do. 60-140 words. ` +
       `Reply: {"narration": "...", ${EFFECTS_SCHEMA}}`);
-    return parseReply(state, raw, 0);
+    const reply = parseReply(state, raw, 0);
+    reply.choice = null;
+    return reply;
   }
 
   async answer(state: GameState, asker: string, question: string): Promise<string> {
@@ -349,30 +407,70 @@ Reply: {"narration": "...", ${EFFECTS_SCHEMA}}`);
 
 // ---------- AI hunters ----------
 
+/** Tics the player model falls into: "it isn't just X, it's Y" and friends. */
+const TIC = /\b(?:is(?:n'?t| not)|was(?:n'?t| not)|are(?:n'?t| not)) (?:just|only|merely)\b|\bnot (?:just|only|merely) [^.;,]+[;,] (?:it'?s|but)\b/i;
+
+function firstWords(text: string, n = 4): string {
+  return text.toLowerCase().replace(/[^a-z' ]/g, "").split(/\s+/).filter(Boolean).slice(0, n).join(" ");
+}
+
+/** "Theo, get down." -> "theo" : who a line opens by addressing, if anyone. */
+function addressee(line: string): string | null {
+  const m = /^\W*([A-Z][\w'-]*(?: [A-Z][\w'-]*)?),/.exec(line.trim());
+  return m ? m[1]!.toLowerCase() : null;
+}
+
+/** Repeats a stock phrase, opens like one of its own recent lines, or keeps opening by calling the same person. */
+export function soundsRepetitive(line: string, recent: readonly string[]): boolean {
+  if (TIC.test(line)) return true;
+  const opening = firstWords(line);
+  if (opening.split(" ").length >= 3 && recent.some((r) => firstWords(r) === opening)) return true;
+  const who = addressee(line);
+  return who !== null && recent.slice(-3).filter((r) => addressee(r) === who).length >= 2;
+}
+
+/** Models sometimes wrap dialogue in its own quotes; the game adds them. */
+const unquote = (text: string) => text.replace(/^["'\u201c\u201d\s]+|["'\u201c\u201d\s]+$/g, "");
+
 export async function aiHunterAction(model: ModelClient, state: GameState, hunter: Hunter): Promise<{ say: string; act: string; costUsd: number }> {
   const book = playbook(hunter.playbook);
   const personality = hunter.controller.kind === "ai" ? hunter.controller.personality : "";
   const party = activeHunters(state).map((h) => `${h.name}${h.pronouns ? `, ${h.pronouns}` : ""} (${playbook(h.playbook)?.name ?? h.playbook}, harm ${h.harm}/7)`).join(", ");
-  const { data, costUsd } = await model.completeJson({
-    role: "player",
-    maxTokens: 300,
-    messages: [
-      {
-        role: "system",
-        content: `You play ${hunter.name}${hunter.pronouns ? ` (${hunter.pronouns})` : ""}, ${book?.name ?? "a hunter"} (${book?.pitch ?? ""}), in a monster-hunting horror game. ` +
-          `Personality: ${personality}. You are a player, not the game master: say what ${hunter.name} does and says right now, ` +
-          `first person. Keep it short: "say" is only the words spoken aloud (one line, or empty); "do" is one sentence of action. ` +
-          `Don't decide outcomes or invent facts about the monster. Support the human players; ` +
-          `don't hog the spotlight, and don't repeat what someone just did. Strongest stats: ` +
-          `${STATS.filter((s) => hunter.stats[s] >= 1).join(", ") || "none"}. Reply as JSON: {"say": "spoken words or empty", "do": "your action"}.`,
-      },
-      {
-        role: "user",
-        content: `The hook: ${state.mystery.hook}\nClues found: ${state.cluesFound.join(" | ") || "none"}\nParty: ${party}\n` +
-          `Story so far: ${state.summary || "(just started)"}\nRecent:\n${recentLog(state, 10)}\n\nWhat does ${hunter.name} do?`,
-      },
-    ],
-  });
-  const o = asObj(data);
-  return { say: asStr(o.say, 300), act: asStr(o.do, 400) || "I keep watch and wait for an opening.", costUsd };
+  const mine = state.log.filter((e) => e.kind === "hunter" && e.who === hunter.name).slice(-4).map((e) => e.text);
+  const messages: ChatMessage[] = [
+    {
+      role: "system",
+      content: `You play ${hunter.name}${hunter.pronouns ? ` (${hunter.pronouns})` : ""}, ${book?.name ?? "a hunter"} (${book?.pitch ?? ""}), in a monster-hunting horror game. ` +
+        `Personality: ${personality}. You are a player, not the game master: say what ${hunter.name} does and says right now, ` +
+        `first person. Keep it short: "say" is only the words spoken aloud (one line, or empty); "do" is one sentence of action. ` +
+        `Don't decide outcomes or invent facts about the monster. Support the human players; ` +
+        `don't hog the spotlight, and don't repeat what someone just did. Strongest stats: ` +
+        `${STATS.filter((s) => hunter.stats[s] >= 1).join(", ") || "none"}.
+Style: talk like a real person under pressure, plain and specific. Never use "it isn't just X, it's Y" or "not only X but Y". ` +
+        `Don't describe the atmosphere; the Keeper does that. Vary what you do: follow up leads, question people, research, ` +
+        `protect someone, act on clues, not the same move every turn. Don't keep opening by addressing the same person, ` +
+        `and don't spend every turn looking after one teammate; the humans can look after themselves. Reply as JSON: {"say": "spoken words or empty", "do": "your action"}.`,
+    },
+    {
+      role: "user",
+      content: `The hook: ${state.mystery.hook}\nClues found: ${state.cluesFound.join(" | ") || "none"}\nParty: ${party}\n` +
+        `Story so far: ${state.summary || "(just started)"}\nRecent:\n${recentLog(state, 10)}\n` +
+        (mine.length ? `Your last lines (don't reuse their wording or ideas):\n${mine.map((m) => `- ${m}`).join("\n")}\n` : "") +
+        `\nWhat does ${hunter.name} do?`,
+    },
+  ];
+  let cost = 0;
+  let result = { say: "", act: "" };
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const { data, costUsd } = await model.completeJson({ role: "player", maxTokens: 300, messages });
+    cost += costUsd;
+    const o = asObj(data);
+    result = { say: unquote(asStr(o.say, 300)), act: asStr(o.do, 400) || "I keep watch and wait for an opening." };
+    if (!soundsRepetitive(`${result.say} ${result.act}`, mine)) break;
+    messages.push(
+      { role: "assistant", content: JSON.stringify({ say: result.say, do: result.act }) },
+      { role: "user", content: "That repeats a stock phrase or your earlier lines. Say something different, plainly, with no 'isn't just / not only' construction." },
+    );
+  }
+  return { ...result, costUsd: cost };
 }

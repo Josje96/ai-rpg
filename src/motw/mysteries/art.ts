@@ -1,20 +1,29 @@
 /**
- * Terminal art for key moments. Plain ASCII, at most 40 columns so it fits a phone.
- * (No backticks inside String.raw templates.)
+ * Terminal art for key moments. Each piece comes in two sizes: small (at most 40 columns, a phone held upright)
+ * and large (at most 72 columns, in art-large.ts). The terminal shows the largest that fits, centered.
+ * Plain ASCII; no backticks inside String.raw templates.
  */
+import {
+  COUNTY_FAIR_LARGE, GENERIC_LARGE, LOW_SIGNAL_LARGE, MANNEQUIN_SEASON_LARGE, MERCY_LAKE_LARGE, SILVER_THREADS_LARGE,
+  SWEETWATER_LARGE,
+} from "./art-large.js";
 
-export type MysteryArt = {
-  /** When the hunt starts. */
-  title: string;
-  /** The first time the monster is seen clearly. */
-  monster: string;
-  /** When the hunters learn how to stop it. */
-  weakness: string;
-  won: string;
-  lost: string;
-};
+export const ART_KEYS = ["title", "monster", "weakness", "won", "lost"] as const;
+export type ArtKey = (typeof ART_KEYS)[number];
+/** One size of every piece: title (hunt starts), monster (first clear sighting), weakness (how to stop it), won, lost. */
+export type ArtSet = Record<ArtKey, string>;
+/** Largest first. */
+export type ArtVariants = readonly string[];
+export type MysteryArt = Record<ArtKey, ArtVariants>;
 
-export const MERCY_LAKE_ART: MysteryArt = {
+export const SMALL_WIDTH = 40;
+export const LARGE_WIDTH = 72;
+
+function sized(large: ArtSet, small: ArtSet): MysteryArt {
+  return Object.fromEntries(ART_KEYS.map((k) => [k, [large[k], small[k]]])) as unknown as MysteryArt;
+}
+
+const MERCY_LAKE_SMALL: ArtSet = {
   title: String.raw`
                _
               (_)
@@ -72,7 +81,7 @@ export const MERCY_LAKE_ART: MysteryArt = {
 `,
 };
 
-export const MANNEQUIN_SEASON_ART: MysteryArt = {
+const MANNEQUIN_SEASON_SMALL: ArtSet = {
   title: String.raw`
   ______________________________
  |      DELACROIX  &  SONS      |
@@ -130,7 +139,7 @@ export const MANNEQUIN_SEASON_ART: MysteryArt = {
 `,
 };
 
-export const SILVER_THREADS_ART: MysteryArt = {
+const SILVER_THREADS_SMALL: ArtSet = {
   title: String.raw`
       \  \    |    /  /
        \  \   |   /  /
@@ -188,7 +197,7 @@ export const SILVER_THREADS_ART: MysteryArt = {
 `,
 };
 
-export const LOW_SIGNAL_ART: MysteryArt = {
+const LOW_SIGNAL_SMALL: ArtSet = {
   title: String.raw`
         _____
        |  *  |
@@ -244,7 +253,7 @@ export const LOW_SIGNAL_ART: MysteryArt = {
 `,
 };
 
-export const SWEETWATER_ART: MysteryArt = {
+const SWEETWATER_SMALL: ArtSet = {
   title: String.raw`
              +
              |
@@ -298,7 +307,7 @@ export const SWEETWATER_ART: MysteryArt = {
 `,
 };
 
-export const COUNTY_FAIR_ART: MysteryArt = {
+const COUNTY_FAIR_SMALL: ArtSet = {
   title: String.raw`
             .-"""-.
           .' \ | / '.
@@ -360,7 +369,7 @@ export const COUNTY_FAIR_ART: MysteryArt = {
 };
 
 /** For AI-written mysteries. */
-export const GENERIC_ART: MysteryArt = {
+const GENERIC_SMALL: ArtSet = {
   title: String.raw`
                  .-.
                 (   )      *
@@ -403,22 +412,29 @@ export const GENERIC_ART: MysteryArt = {
 `,
 };
 
-const TOMBSTONE_WIDTH = 13;
-
-/** Shown when a hunter is taken out of action. */
-export function outOfActionArt(name: string): string {
-  const label = name.length > TOMBSTONE_WIDTH - 2 ? name.slice(0, TOMBSTONE_WIDTH - 3) + "." : name;
-  const pad = TOMBSTONE_WIDTH - label.length;
+function tombstone(name: string, width: number, indent: string): string {
+  const label = name.length > width - 2 ? name.slice(0, width - 3) + "." : name;
+  const pad = width - label.length;
   const centered = " ".repeat(Math.floor(pad / 2)) + label + " ".repeat(Math.ceil(pad / 2));
-  return String.raw`
-          _____________
-         /             \
-        |   OUT  OF     |
-        |    ACTION     |
-        |               |
-        | ${centered} |
-       _|_______________|_
-`;
+  const line = (inner: string) => `${indent}| ${inner.padEnd(width)} |`;
+  return [
+    "",
+    `${indent} ${"_".repeat(width + 2)}`,
+    `${indent}/${" ".repeat(width + 2)}\\`,
+    line(""),
+    line(" ".repeat(Math.floor((width - 11) / 2)) + "OUT  OF"),
+    line(" ".repeat(Math.floor((width - 11) / 2)) + " ACTION"),
+    line(""),
+    `${indent}| ${centered} |`,
+    line(""),
+    `${indent.slice(0, -1)}_|${"_".repeat(width + 2)}|_`,
+    "",
+  ].join("\n");
+}
+
+/** Shown when a hunter is taken out of action; the name is written on the stone. */
+export function outOfActionArt(name: string): ArtVariants {
+  return [tombstone(name, 25, "               "), tombstone(name, 13, "        ")];
 }
 
 /** e.g. "[###---] The Plot Thickens" */
@@ -427,3 +443,11 @@ export function countdownMeter(step: number, steps: readonly string[]): string {
   const label = filled ? (steps[filled - 1] ?? "").split(":")[0] : "not started";
   return `[${"#".repeat(filled)}${"-".repeat(steps.length - filled)}] ${label}`;
 }
+
+export const MERCY_LAKE_ART = sized(MERCY_LAKE_LARGE, MERCY_LAKE_SMALL);
+export const MANNEQUIN_SEASON_ART = sized(MANNEQUIN_SEASON_LARGE, MANNEQUIN_SEASON_SMALL);
+export const SILVER_THREADS_ART = sized(SILVER_THREADS_LARGE, SILVER_THREADS_SMALL);
+export const LOW_SIGNAL_ART = sized(LOW_SIGNAL_LARGE, LOW_SIGNAL_SMALL);
+export const SWEETWATER_ART = sized(SWEETWATER_LARGE, SWEETWATER_SMALL);
+export const COUNTY_FAIR_ART = sized(COUNTY_FAIR_LARGE, COUNTY_FAIR_SMALL);
+export const GENERIC_ART = sized(GENERIC_LARGE, GENERIC_SMALL);

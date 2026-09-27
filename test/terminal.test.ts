@@ -47,16 +47,25 @@ test("wraps to narrow phone widths with a hanging indent", () => {
   assert.equal(wrap("the quick brown fox jumps", 11, "  "), "the quick\n  brown fox\n  jumps");
 });
 
-test("art prints as-is when it fits and is skipped when the screen is too narrow", () => {
-  for (const [columns, shown] of [[80, true], [30, false]] as const) {
+test("art: the largest size that fits, centered; nothing if none fits", () => {
+  const large = "\n      /\\\n     /  \\   a mountain drawn wide enough to need space\n";
+  const small = "\n   /\\\n  /  \\ hill\n";
+  const render = (columns: number, variants: readonly string[] = [large, small]) => {
     const input = new PassThrough();
     const output = new PassThrough() as PassThrough & { columns?: number };
     output.columns = columns;
     let text = "";
     output.on("data", (d) => { text += String(d); });
     const t = new TerminalIO(input as never, output as never);
-    t.show("art", "\n   /\\\n  /  \\   a mountain that is exactly this wide\n");
-    assert.equal(text.includes("   /\\\n  /  \\"), shown, `columns ${columns}`);
+    t.art(variants);
     t.close();
-  }
+    return text;
+  };
+  assert.match(render(80), /a mountain/);
+  const narrow = render(30);
+  assert.match(narrow, /hill/);
+  assert.doesNotMatch(narrow, /mountain/);
+  // centered: the 9-wide small version sits in the middle of 29 usable columns
+  assert.match(narrow, /\n {11}\/\\\n {10}\/  \\ hill/);
+  assert.equal(render(30, [large]).trim(), "", "no size fits: nothing, rather than wrapped art");
 });

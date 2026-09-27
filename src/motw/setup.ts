@@ -73,6 +73,11 @@ async function askNumber(io: GameIO, prompt: string, min: number, max: number, f
 
 export class SetupCancelled extends Error {}
 
+/** "agronaught" -> "Agronaught"; leaves names that already have capitals alone. */
+export function capitalize(name: string): string {
+  return name === name.toLowerCase() ? name.replace(/(^|[\s-])(\p{L})/gu, (_, sep: string, ch: string) => sep + ch.toUpperCase()) : name;
+}
+
 async function chooseMystery(io: GameIO, keeper: Keeper, costs: { costUsd: number }): Promise<Mystery> {
   const options = [
     ...BUILT_IN_MYSTERIES.map((m) => `${m.title}: ${m.pitch ?? ""}${m.warnings?.length ? ` [${m.warnings.join(", ")}]` : ""}`),
@@ -94,9 +99,9 @@ async function chooseMystery(io: GameIO, keeper: Keeper, costs: { costUsd: numbe
 async function humanHunter(io: GameIO, player: string, available: Playbook[], ids: Set<string>, random: RandomInt): Promise<Hunter> {
   io.show("heading", `${player}'s hunter`);
   const book = available[await io.choose(`${player}, pick a hunter type:`, available.map((b) => `${b.name}: ${b.pitch}`))]!;
-  const name = (await io.ask(`What's your ${book.name.replace(/^The /, "").toLowerCase()} called?`)).trim().slice(0, 40);
+  const name = (await io.ask(`${player}, name your hunter (the character you'll play, ${book.name.replace(/^The /, "the ")}):`)).trim().slice(0, 40);
   if (name === "/quit") throw new SetupCancelled();
-  const hunterName = name || pick(AI_NAMES, random).name;
+  const hunterName = capitalize(name) || pick(AI_NAMES, random).name;
   const pronouns = (await io.ask(`Pronouns for ${hunterName}? (e.g. she/her, he/him, they/them; Enter to skip)`)).trim().slice(0, 20);
   if (pronouns === "/quit") throw new SetupCancelled();
   const controller = { kind: "human" as const, player };
@@ -130,9 +135,9 @@ export async function setupGame(io: GameIO, keeper: Keeper, random: RandomInt = 
   const humanCount = await askNumber(io, "How many people are playing on this device? (1-4)", 1, 4, 2);
   const players: string[] = [];
   for (let i = 1; i <= humanCount; i++) {
-    const name = (await io.ask(`Player ${i}, your name?`)).trim().slice(0, 30);
+    const name = (await io.ask(`Player ${i}: what's YOUR name? (the real person; you'll name your hunter next)`)).trim().slice(0, 30);
     if (name === "/quit") throw new SetupCancelled();
-    players.push(name || `Player ${i}`);
+    players.push(capitalize(name) || `Player ${i}`);
   }
 
   const ids = new Set<string>();

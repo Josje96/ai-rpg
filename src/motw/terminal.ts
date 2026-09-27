@@ -64,12 +64,6 @@ export class TerminalIO implements GameIO {
   show(kind: Parameters<GameIO["show"]>[0], text: string, who?: string): void {
     const w = this.#width;
     switch (kind) {
-      case "art": {
-        const lines = text.replace(/^\n+|\s+$/g, "").split("\n");
-        // Skip rather than wrap: wrapped ASCII art is just noise.
-        if (Math.max(...lines.map((l) => l.length)) <= w) this.#print("\n" + yellow(lines.join("\n")));
-        break;
-      }
       case "heading": this.#print("\n" + bold(`== ${text} ==`)); break;
       case "keeper": this.#print("\n" + wrap(`${cyan("Keeper:")} ${text}`, w + (useColor ? 9 : 0))); break;
       case "hunter": this.#print("\n" + wrap(`${yellow(`${who ?? "Hunter"}:`)} ${text}`, w + (useColor ? 9 : 0))); break;
@@ -77,6 +71,21 @@ export class TerminalIO implements GameIO {
       case "system": this.#print(dim(wrap(`  * ${text}`, w, "    "))); break;
       case "error": this.#print(red(wrap(text, w))); break;
       case "info": this.#print(wrap(text, w)); break;
+    }
+  }
+
+  art(variants: readonly string[]): void {
+    const width = this.#width;
+    for (const variant of variants) {
+      const lines = variant.replace(/^\n+|\s+$/g, "").split("\n");
+      // Drop the shared left margin, then center in the terminal.
+      const margin = Math.min(...lines.filter((l) => l.trim()).map((l) => l.length - l.trimStart().length));
+      const trimmed = lines.map((l) => l.slice(margin));
+      const artWidth = Math.max(...trimmed.map((l) => l.length));
+      if (artWidth > width) continue; // too wide: try the next size down; wrapped art is just noise
+      const pad = " ".repeat(Math.floor((width - artWidth) / 2));
+      this.#print("\n" + yellow(trimmed.map((l) => (l ? pad + l : l)).join("\n")));
+      return;
     }
   }
 

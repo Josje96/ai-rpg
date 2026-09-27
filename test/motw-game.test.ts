@@ -133,29 +133,27 @@ test("the opening scene can't start the countdown", async () => {
   assert.equal(state.countdown, 0);
 });
 
-test("pacing: one countdown step per round, and the last step only on the keeper's turn", async () => {
+test("pacing: one countdown step every two rounds, a warning before the last, which only the keeper's turn can take", async () => {
   const advance = { roll: null, narration: "Time slips away.", effects: { countdown: true } };
+  const quiet = { roll: null, narration: "...", effects: {} };
+  const keeperAdvance = { narration: "Keeper.", effects: { countdown: true } };
+  const rounds = 11;
   const model = new FakeModel({
-    gm: [
-      { narration: "Night.", effects: {} },
-      advance, advance,                                 // round 1: two hunters both try to advance it
-      { narration: "Keeper turn.", effects: { countdown: true } },
-      ...Array.from({ length: 5 }, () => [advance, { roll: null, narration: "...", effects: {} }, { narration: "Keeper.", effects: { countdown: true } }]).flat(),
-    ],
+    gm: [{ narration: "Night.", effects: {} }, ...Array.from({ length: rounds }, () => [advance, quiet, keeperAdvance]).flat()],
     player: [],
   });
   const keeper = new Keeper(model);
   const state = await setupGame(new ScriptIO(["1", "2", "A", "B", "1", "Ada", "", "y", "2", "Bo", "", "y", "0"]), keeper, scriptedRandom([]));
-  const io = new ScriptIO(["wait", "wait", ...Array.from({ length: 5 }, () => ["wait", "wait"]).flat()]);
+  const io = new ScriptIO(Array.from({ length: rounds * 2 }, () => "wait"));
   const steps: number[] = [];
   await new Game(state, { keeper, model, io, save: async (s) => { if (s.turn === 0) steps[s.round] = s.countdown; } }).run();
-  // Rounds 1-5: one step each, although both the hunter and the keeper asked every round.
-  // Round 6 starts at step 5: the hunter's request for the final step is refused; the keeper's turn takes it.
-  assert.deepEqual(steps.slice(2, 7), [1, 2, 3, 4, 5]);
+  // Both the hunter and the keeper ask every round. Steps land in rounds 1, 3, 5, 7, 9; in round 11 the hunter's
+  // request for the final step is refused and the keeper's turn takes it.
+  assert.deepEqual(steps.slice(2, 12), [1, 1, 2, 2, 3, 3, 4, 4, 5, 5]);
   assert.equal(state.countdown, 6);
   assert.equal(state.status, "lost");
-  assert.equal(state.round, 6);
-  assert.match(state.log.filter((e) => e.kind === "system").map((e) => e.text).join("\n"), /countdown has run out/);
+  assert.equal(state.round, 11);
+  assert.match(io.text("system"), /One step left/);
 });
 
 test("pronouns reach the keeper and the sheet", async () => {
@@ -204,7 +202,7 @@ test("the keeper sees the clues the hunters already have", async () => {
   assert.match(model.calls[1]!.messages[1]!.content, /ALREADY HAVE[^\n]*\n- The light is a lantern/);
 });
 
-test("the keeper is told how long the clock has been still", async () => {
+test("the keeper is told whether the clock has moved", async () => {
   const quiet = { roll: null, narration: "...", effects: {} };
   const model = new FakeModel({
     gm: [{ narration: "Night.", effects: {} }, quiet, { narration: "K1.", effects: {} }, quiet, { narration: "K2.", effects: {} }],
@@ -214,8 +212,8 @@ test("the keeper is told how long the clock has been still", async () => {
   const state = await setupGame(new ScriptIO(["1", "1", "Joe", "1", "Ada", "", "y", "0"]), keeper, scriptedRandom([]));
   await new Game(state, { keeper, model, io: new ScriptIO(["look", "look", "/quit"]), save: async () => {} }).run();
   const keeperTurns = model.calls.filter((c) => c.messages[1]!.content.includes("Every hunter has acted"));
-  assert.match(keeperTurns[0]!.messages[1]!.content, /last moved 1 round\(s\) ago/);
-  assert.match(keeperTurns[1]!.messages[1]!.content, /last moved 2 round\(s\) ago/);
+  assert.match(keeperTurns[0]!.messages[1]!.content, /It hasn't moved yet/);
+  assert.match(keeperTurns[1]!.messages[1]!.content, /It hasn't moved yet/);
 });
 
 test("key-moment art: monster reveal (once), weakness, clock meter, hunter out, and the ending", async () => {
@@ -239,8 +237,7 @@ test("key-moment art: monster reveal (once), weakness, clock meter, hunter out, 
   // Round 2: Ada reads (weakness); Bo acts (Ada takes 4 more, declines Luck, goes out); keeper turn: the token melts.
   const io = new ScriptIO(["look", "/clock", "bite", "n", "read", "grab it", "n"]);
   await new Game(state, { keeper, model, io, save: async () => {} }).run();
-  const art = io.shown.filter((x) => x.kind === "art").map((x) => x.text);
-  assert.deepEqual(art, [
+  assert.deepEqual(io.arts, [
     COUNTY_FAIR_ART.title,
     COUNTY_FAIR_ART.monster,          // only once, though revealed twice
     COUNTY_FAIR_ART.weakness,
@@ -252,7 +249,7 @@ test("key-moment art: monster reveal (once), weakness, clock meter, hunter out, 
   assert.equal(io.remaining(), 0);
   // the out-of-action card appears after the harm line that caused it
   const harmIndex = io.shown.findIndex((x) => x.text.includes("Ada takes 4 harm") && x.text.includes("OUT"));
-  assert.equal(io.shown[harmIndex + 1]!.text, outOfActionArt("Ada"));
+  assert.equal(io.shown[harmIndex + 1]!.text, outOfActionArt("Ada").at(-1));
 });
 
 test("landing a hit on the monster counts as seeing it", async () => {
@@ -265,6 +262,6 @@ test("landing a hit on the monster counts as seeing it", async () => {
   const state = await setupGame(new ScriptIO(["1", "1", "Joe", "1", "Ada", "", "y", "0"]), keeper, scriptedRandom([]));
   const io = new ScriptIO(["I swing", "/quit"]);
   await new Game(state, { keeper, model, io, save: async () => {} }).run();
-  assert.ok(io.shown.some((x) => x.kind === "art" && x.text === MERCY_LAKE_ART.monster));
+  assert.ok(io.arts.includes(MERCY_LAKE_ART.monster));
   assert.equal(state.monsterSeen, true);
 });

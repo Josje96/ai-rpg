@@ -43,6 +43,8 @@ export type GameState = {
   monsterHarm: number;
   /** Whether the monster has been seen clearly yet (its reveal art shows once). */
   monsterSeen?: boolean;
+  /** Whether players have been told weapons can only drive the monster off. */
+  weaponHintShown?: boolean;
   weaknessKnown: boolean;
   cluesFound: string[];
   /**
@@ -142,11 +144,14 @@ export function hurtMonster(state: GameState, amount: number): string {
 }
 
 /**
- * Pacing rule enforced by the engine, not the model: one countdown step per round, and the final step
- * (the monster winning) only on the keeper's own turn, never straight off one missed roll.
+ * Pacing rule enforced by the engine, not the model: at most one countdown step every two rounds, and the final
+ * step (the monster winning) only on the keeper's own turn, never straight off one missed roll.
  */
+/** Minimum rounds between countdown steps: six steps then take 11+ rounds, about an hour at the table. */
+export const ROUNDS_PER_STEP = 2;
+
 export function countdownAllowed(state: GameState, keeperTurn: boolean): boolean {
-  if (state.countdownRound === state.round) return false;
+  if (state.countdownRound !== undefined && state.round - state.countdownRound < ROUNDS_PER_STEP) return false;
   if (state.countdown + 1 >= COUNTDOWN_LENGTH && !keeperTurn) return false;
   return true;
 }

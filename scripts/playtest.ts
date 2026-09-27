@@ -42,6 +42,7 @@ const t0 = Date.now();
 let last = Date.now();
 const io: GameIO = {
   show(kind, text, who) { console.log(`\n[${kind}${who ? " " + who : ""}] ${text}`); },
+  art(variants) { console.log(`\n[art]${variants.at(-1) ?? ""}`); },
   async ask(prompt) {
     const a = setup.length ? setup.shift()! : actions.shift() ?? "/quit";
     console.log(`\n>> ${prompt.split("\n")[0]}\n<< ${a}`);
