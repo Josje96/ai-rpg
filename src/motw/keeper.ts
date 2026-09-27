@@ -18,11 +18,12 @@ export type Effects = {
   clues: string[];
   countdown: boolean;
   weaknessDiscovered: boolean;
+  monsterRevealed: boolean;
   outcome: "won" | null;
 };
 
 export const NO_EFFECTS: Effects = {
-  harm: [], heal: [], monsterHarm: 0, clues: [], countdown: false, weaknessDiscovered: false, outcome: null,
+  harm: [], heal: [], monsterHarm: 0, clues: [], countdown: false, weaknessDiscovered: false, monsterRevealed: false, outcome: null,
 };
 
 export type KeeperReply = { narration: string; effects: Effects; warnings: string[] };
@@ -39,6 +40,7 @@ const EFFECTS_SCHEMA = `"effects": {
     "clues": ["a clue from the secret list that the hunters just learned, paraphrased"],
     "countdown": false,
     "weaknessDiscovered": false,
+    "monsterRevealed": false,
     "outcome": null
   }`;
 
@@ -72,6 +74,7 @@ How to keep:
   winning) only on your keeper turn. Usually advance it on your keeper turn when time has passed; on a hunter's
   miss, prefer harm, danger, a bystander in trouble, or a lost opportunity over the clock.
 - Set "weaknessDiscovered": true when the hunters have learned or clearly guessed how to stop the monster.
+- Set "monsterRevealed": true the first time the monster itself is seen clearly (not just its signs, voice, or minions).
 - Set "outcome": "won" only when the hunters actually use the weakness to stop the monster for good.
 - Humans are playing some hunters. Never decide what a human's hunter says, thinks, or does; describe the world
   and ask what they do. Don't end on a question to a specific AI hunter; the engine handles turns.
@@ -187,7 +190,7 @@ export function parseEffects(state: GameState, raw: unknown, opts: { maxMonsterH
     outcome = null;
   }
   return {
-    effects: { harm, heal: healList, monsterHarm, clues, countdown: o.countdown === true, weaknessDiscovered, outcome },
+    effects: { harm, heal: healList, monsterHarm, clues, countdown: o.countdown === true, weaknessDiscovered, monsterRevealed: o.monsterRevealed === true, outcome },
     warnings,
   };
 }

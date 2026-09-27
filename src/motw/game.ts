@@ -2,6 +2,7 @@ import { randomInt } from "node:crypto";
 import type { ModelClient } from "../ai/provider.js";
 import type { RandomInt } from "../domain/dice.js";
 import { aiHunterAction, type Effects, type Keeper, type KeeperReply } from "./keeper.js";
+import { countdownMeter, GENERIC_ART, outOfActionArt } from "./mysteries/art.js";
 import { effectiveRoll, playbook } from "./playbooks.js";
 import {
   BASIC_MOVES, MAX_HARM, MAX_STAT, STATS, applyLuckToRoll, basicMove, describeRoll, harmStatus, rollMove,
@@ -39,6 +40,7 @@ export const HELP = [
   "  /sheet [name]  your sheet (or another hunter's)",
   "  /party         everyone's harm and Luck",
   "  /clues         clues found so far",
+  "  /clock         how close the monster is to winning",
   "  /recap         the story so far",
   "  /ask <q>       out-of-character question to the Keeper",
   "  /rules         the basic moves",
@@ -74,7 +76,7 @@ export class Game {
   async #run(): Promise<boolean> {
     const { state, deps } = this;
     if (state.round === 0) {
-      if (state.mystery.art) deps.io.show("art", state.mystery.art);
+      deps.io.show("art", this.#art.title);
       deps.io.show("heading", state.mystery.title);
       if (state.mystery.credits?.length) deps.io.show("system", "Uses openly licensed material; type /credits for attribution.");
       deps.io.show("info", state.mystery.hook);
@@ -115,6 +117,7 @@ export class Game {
       await deps.save(state);
     }
 
+    deps.io.show("art", state.status === "won" ? this.#art.won : this.#art.lost);
     deps.io.show("heading", state.status === "won" ? "The monster is stopped." : "The monster wins this week.");
     deps.io.show("info", `Clues found: ${state.cluesFound.length}/${state.mystery.clues.length}. Model cost this game: $${state.costUsd.toFixed(3)}.`);
     await deps.save(state);
@@ -138,6 +141,7 @@ export class Game {
         case "help": io.show("info", HELP); break;
         case "sheet": io.show("info", sheet(arg ? hunterById(this.state, arg) ?? hunter : hunter)); break;
         case "party": io.show("info", this.state.hunters.map(partyLine).join("\n")); break;
+        case "clock": io.show("info", `Clock ${countdownMeter(this.state.countdown, this.state.mystery.countdown)}`); break;
         case "clues": io.show("info", this.state.cluesFound.length ? this.state.cluesFound.map((c) => `- ${c}`).join("\n") : "No clues yet."); break;
         case "recap": io.show("info", this.state.summary || "Nothing to recap yet; it's all in the recent scroll."); break;
         case "credits": io.show("info", this.state.mystery.credits?.length ? this.state.mystery.credits.join("\n\n") : "This mystery is original to this project."); break;
@@ -229,18 +233,33 @@ export class Game {
         continue;
       }
       lines.push(applyHarm(state, hunter, amount, reason));
+      if (harmStatus(hunter.harm) === "out") {
+        this.#flush(lines);
+        this.deps.io.show("art", outOfActionArt(hunter.name));
+      }
     }
     for (const { hunter, amount } of effects.heal) lines.push(heal(state, hunter, amount));
+    // You can't hit what you haven't seen, so a hit also counts as the reveal.
+    if ((effects.monsterRevealed || effects.monsterHarm > 0) && !state.monsterSeen) {
+      state.monsterSeen = true;
+      this.#flush(lines);
+      this.deps.io.show("art", this.#art.monster);
+    }
     if (effects.monsterHarm > 0) lines.push(hurtMonster(state, effects.monsterHarm));
     const found = recordClues(state, effects.clues);
     if (found.length) lines.push(...found.map((c) => `Clue: ${c}`));
     if (effects.weaknessDiscovered && !state.weaknessKnown) {
       state.weaknessKnown = true;
       log(state, { kind: "system", text: "The hunters know how to stop it." });
+      this.#flush(lines);
+      this.deps.io.show("art", this.#art.weakness);
       lines.push("You know how to stop it now.");
     }
     if (effects.countdown && state.status === "active") {
-      if (countdownAllowed(state, keeperTurn)) lines.push(advanceCountdown(state));
+      if (countdownAllowed(state, keeperTurn)) {
+        lines.push(advanceCountdown(state));
+        lines.push(`Clock ${countdownMeter(state.countdown, state.mystery.countdown)}`);
+      }
       else this.#warn(["countdown advance ignored: pacing (once per round; final step only on the keeper's turn)"]);
     }
     if (effects.outcome === "won" && state.status === "active") {
@@ -256,6 +275,15 @@ export class Game {
     const index = list.findIndex((f) => (f.others ? f.hunter !== hunter.id : f.hunter === hunter.id));
     if (index < 0) return undefined;
     return list.splice(index, 1)[0];
+  }
+
+  get #art() {
+    return this.state.mystery.art ?? GENERIC_ART;
+  }
+
+  /** Show pending effect lines now, so art appears in the right place between them. */
+  #flush(lines: string[]): void {
+    for (const line of lines.splice(0)) this.deps.io.show("system", line);
   }
 
   // ---------- choices ----------

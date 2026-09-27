@@ -217,3 +217,54 @@ test("the keeper is told how long the clock has been still", async () => {
   assert.match(keeperTurns[0]!.messages[1]!.content, /last moved 1 round\(s\) ago/);
   assert.match(keeperTurns[1]!.messages[1]!.content, /last moved 2 round\(s\) ago/);
 });
+
+test("key-moment art: monster reveal (once), weakness, clock meter, hunter out, and the ending", async () => {
+  const { COUNTY_FAIR_ART, outOfActionArt } = await import("../src/motw/mysteries/art.js");
+  const model = new FakeModel({
+    gm: [
+      { narration: "The fair glows.", effects: {} },
+      { roll: null, narration: "Something enormous on a hubcap throne.", effects: { monsterRevealed: true } },
+      { roll: null, narration: "It bites.", effects: { harm: [{ hunter: "ada", amount: 4 }], monsterRevealed: true } },
+      { narration: "The generators blow.", effects: { countdown: true } },
+      { roll: null, narration: "Rufus's scrapbook: melt it.", effects: { weaknessDiscovered: true } },
+      { roll: null, narration: "It bites again.", effects: { harm: [{ hunter: "ada", amount: 4 }] } },
+      { roll: null, narration: "The token melts.", effects: { outcome: "won" } },
+    ],
+    player: [],
+  });
+  const keeper = new Keeper(model);
+  const state = await setupGame(new ScriptIO(["6", "1", "Joe", "1", "Ada", "", "y", "0"]), keeper, scriptedRandom([]));
+  state.hunters.push({ ...structuredClone(state.hunters[0]!), id: "bo", name: "Bo" });
+  // Round 1: Ada looks (reveal); Bo checks the clock, then acts (Ada takes 4, declines Luck); keeper turn moves the clock.
+  // Round 2: Ada reads (weakness); Bo acts (Ada takes 4 more, declines Luck, goes out); keeper turn: the token melts.
+  const io = new ScriptIO(["look", "/clock", "bite", "n", "read", "grab it", "n"]);
+  await new Game(state, { keeper, model, io, save: async () => {} }).run();
+  const art = io.shown.filter((x) => x.kind === "art").map((x) => x.text);
+  assert.deepEqual(art, [
+    COUNTY_FAIR_ART.title,
+    COUNTY_FAIR_ART.monster,          // only once, though revealed twice
+    COUNTY_FAIR_ART.weakness,
+    outOfActionArt("Ada"),
+    COUNTY_FAIR_ART.won,
+  ]);
+  assert.match(io.text("system"), /Clock \[#-----\] Calm Before the Storm/);
+  assert.match(io.text("info"), /Clock \[------\] not started/, "/clock before the clock moves");
+  assert.equal(io.remaining(), 0);
+  // the out-of-action card appears after the harm line that caused it
+  const harmIndex = io.shown.findIndex((x) => x.text.includes("Ada takes 4 harm") && x.text.includes("OUT"));
+  assert.equal(io.shown[harmIndex + 1]!.text, outOfActionArt("Ada"));
+});
+
+test("landing a hit on the monster counts as seeing it", async () => {
+  const { MERCY_LAKE_ART } = await import("../src/motw/mysteries/art.js");
+  const model = new FakeModel({
+    gm: [{ narration: "Dusk.", effects: {} }, { roll: null, narration: "You strike the lantern-bearer.", effects: { monsterHarm: 2 } }],
+    player: [],
+  });
+  const keeper = new Keeper(model);
+  const state = await setupGame(new ScriptIO(["1", "1", "Joe", "1", "Ada", "", "y", "0"]), keeper, scriptedRandom([]));
+  const io = new ScriptIO(["I swing", "/quit"]);
+  await new Game(state, { keeper, model, io, save: async () => {} }).run();
+  assert.ok(io.shown.some((x) => x.kind === "art" && x.text === MERCY_LAKE_ART.monster));
+  assert.equal(state.monsterSeen, true);
+});

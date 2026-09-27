@@ -41,6 +41,8 @@ export type GameState = {
   /** Round in which the countdown last advanced; it may advance at most once per round. */
   countdownRound?: number;
   monsterHarm: number;
+  /** Whether the monster has been seen clearly yet (its reveal art shows once). */
+  monsterSeen?: boolean;
   weaknessKnown: boolean;
   cluesFound: string[];
   /**

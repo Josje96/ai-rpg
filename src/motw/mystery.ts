@@ -1,3 +1,5 @@
+import type { MysteryArt } from "./mysteries/art.js";
+
 /** A mystery is the keeper's hidden prep: what's really going on, and how the week goes if nobody stops it. */
 
 export type MonsterAttack = { name: string; harm: number; tags: readonly string[] };
@@ -25,8 +27,8 @@ export type Mystery = {
   pitch?: string;
   /** Content warnings, shown before choosing. */
   warnings?: readonly string[];
-  /** Title art shown when the hunt starts (plain ASCII, at most 40 columns). */
-  art?: string;
+  /** Terminal art for the title, monster reveal, weakness reveal, and endings. */
+  art?: MysteryArt;
   /** License attributions for material this mystery draws on. */
   credits?: readonly string[];
   /** Read aloud to the players at the start. */

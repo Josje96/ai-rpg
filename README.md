@@ -19,7 +19,8 @@ Needs `OPENROUTER_API_KEY` in `.env` (see `.env.example`). A session is a few ce
 - **Turns:** each hunter acts once per round, then the Keeper moves the monster and the world. On your turn, type what your hunter does in plain words. The Keeper decides if it triggers a move; **the engine rolls the dice** (2d6 + stat: 10+ strong hit, 7-9 hit with a cost, 6- miss and +1 XP) and tracks harm, Luck, XP, clues and the countdown.
 - **Luck** (7 each) turns a roll into a 12 or cancels incoming harm; you're asked when it matters.
 - **Win** by finding the monster's weakness through clues and using it before the six-step countdown runs out.
-- **Commands:** `/sheet`, `/party`, `/clues`, `/recap`, `/ask <question>` (out of character), `/rules`, `/pass`, `/save`, `/quit`.
+- **Commands:** `/sheet`, `/party`, `/clues`, `/clock`, `/recap`, `/ask <question>` (out of character), `/rules`, `/credits`, `/pass`, `/save`, `/quit`.
+- **Terminal art** marks the key moments: each story's title, the monster's first clear appearance, discovering its weakness, a hunter going out of action, and a win or loss screen. A clock meter (`[###---] The Plot Thickens`) shows whenever the countdown moves. Art is plain ASCII, at most 40 columns, and is skipped on screens too narrow for it.
 - **Saves** happen after every turn (`~/.local/share/tabletop-ai/saves`). Ctrl-C, Ctrl-D or a dropped SSH connection saves too; `npm run play` offers to continue.
 
 ### Mysteries

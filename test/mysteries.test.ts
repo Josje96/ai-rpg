@@ -62,20 +62,32 @@ test("AI-written mysteries get design guidance and credits", async () => {
   assert.match(model.calls[0]!.messages[1]!.content, /haunted lighthouse/);
 });
 
-test("every mystery has phone-sized, plain-ASCII title art, shown when the hunt starts", async () => {
-  const { GENERIC_ART } = await import("../src/motw/mysteries/art.js");
-  for (const [id, art] of [...BUILT_IN_MYSTERIES.map((m) => [m.id, m.art] as const), ["generated", GENERIC_ART] as const]) {
+test("every mystery has all five pieces of phone-sized, plain-ASCII art", async () => {
+  const { GENERIC_ART, outOfActionArt } = await import("../src/motw/mysteries/art.js");
+  const sets = [...BUILT_IN_MYSTERIES.map((m) => [m.id, m.art] as const), ["generated", GENERIC_ART] as const];
+  for (const [id, art] of sets) {
     assert.ok(art, `${id} has no art`);
-    for (const line of art.split("\n")) {
-      assert.ok(line.length <= 40, `${id}: line too wide (${line.length}): ${line}`);
-      assert.match(line, /^[\x20-\x7e]*$/, `${id}: non-ASCII character in: ${line}`);
+    for (const key of ["title", "monster", "weakness", "won", "lost"] as const) {
+      assert.ok(art[key].trim(), `${id}.${key} is empty`);
+      for (const line of art[key].split("\n")) {
+        assert.ok(line.length <= 40, `${id}.${key}: line too wide (${line.length}): ${line}`);
+        assert.match(line, /^[\x20-\x7e]*$/, `${id}.${key}: non-ASCII character in: ${line}`);
+      }
     }
   }
+  for (const name of ["Al", "Marisol Quint", "Bartholomew Featherstonehaugh"]) {
+    const card = outOfActionArt(name);
+    assert.ok(card.split("\n").every((l) => l.length <= 40), name);
+    assert.equal(new Set(card.split("\n").filter((l) => l.includes("|")).map((l) => l.lastIndexOf("|"))).size, 1, `${name}: tombstone edge is ragged`);
+  }
+});
+
+test("title art comes right before the title when a hunt starts", async () => {
   const model = new FakeModel({ gm: [{ narration: "Lights.", effects: {} }], player: [] });
   const keeper = new Keeper(model);
   const io = new ScriptIO(["6", "1", "Joe", "1", "Ada", "", "y", "0", "/quit"]);
   await new Game(await setupGame(io, keeper, scriptedRandom([])), { keeper, model, io, save: async () => {} }).run();
-  const first = io.shown.findIndex((s) => s.kind === "art");
+  const first = io.shown.findIndex((x) => x.kind === "art");
   assert.match(io.shown[first]!.text, /PIKE COUNTY FAIR/);
-  assert.equal(io.shown[first + 1]!.kind, "heading", "art comes right before the title");
+  assert.equal(io.shown[first + 1]!.kind, "heading");
 });
