@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseAdjudication, parseEffects } from "../src/motw/keeper.js";
-import { parseMystery } from "../src/motw/mystery.js";
-import { MERCY_LAKE } from "../src/motw/mysteries/index.js";
-import { advanceCountdown, applyHarm, hurtMonster, listSaves, loadGame, newGame, saveGame, type Hunter } from "../src/motw/state.js";
+import { parseAdjudication, parseEffects } from "../src/hunt/keeper.js";
+import { parseMystery } from "../src/hunt/mystery.js";
+import { MERCY_LAKE } from "../src/hunt/mysteries/index.js";
+import { advanceCountdown, applyHarm, hurtMonster, listSaves, loadGame, newGame, saveGame, type Hunter } from "../src/hunt/state.js";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -73,7 +73,7 @@ test("mystery validation catches missing pieces", () => {
 });
 
 test("saves round-trip and list newest first", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "motw-"));
+  const dir = await mkdtemp(join(tmpdir(), "hunt-"));
   const a = game();
   await saveGame(a, dir);
   await new Promise((r) => setTimeout(r, 5));

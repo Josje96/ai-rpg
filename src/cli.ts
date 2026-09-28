@@ -12,7 +12,7 @@ export type WriteLine = (line: string) => void;
 
 const usage = [
   "Usage:",
-  "  tabletop-ai play                    Play Monster of the Week with an AI Keeper",
+  "  tabletop-ai play                    Play Monster Hunt with an AI Keeper",
   "  tabletop-ai systems                 List installed RPG adapters",
   "  tabletop-ai roll <dice-notation>    Roll dice, e.g. 2d6+3",
   "  tabletop-ai shadowrun-roll <pool> [--advantage|--disadvantage]",
@@ -157,7 +157,7 @@ const invokedPath = process.argv[1];
 if (invokedPath && import.meta.url === pathToFileURL(resolve(invokedPath)).href) {
   const args = process.argv.slice(2);
   if (args[0] === "play") {
-    const { runPlay } = await import("./motw/play.js");
+    const { runPlay } = await import("./hunt/play.js");
     process.exitCode = await runPlay();
   } else {
     process.exitCode = runCli(args);

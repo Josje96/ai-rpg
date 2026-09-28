@@ -5,10 +5,10 @@
  *   bun run playtest -- 3       mystery #3 from the menu, with generic investigator actions
  */
 import { OpenRouterClient } from "../src/ai/openrouter.js";
-import { Game, type GameIO } from "../src/motw/game.js";
-import { Keeper } from "../src/motw/keeper.js";
-import { loadProjectEnv } from "../src/motw/play.js";
-import { setupGame } from "../src/motw/setup.js";
+import { Game, type GameIO } from "../src/hunt/game.js";
+import { Keeper } from "../src/hunt/keeper.js";
+import { loadProjectEnv } from "../src/hunt/play.js";
+import { setupGame } from "../src/hunt/setup.js";
 
 loadProjectEnv();
 const mysteryNumber = process.argv[2] ?? "1";

@@ -67,7 +67,7 @@ ${moves}`;
 }
 
 function keeperSystem(): string {
-  return `You are the Keeper (game master) of a Monster of the Week style horror game played at one table, on a phone screen.
+  return `You are the Keeper (game master) of a Monster Hunt horror game played at one table, on a phone screen.
 ${rulesText()}
 
 How to keep:
@@ -264,7 +264,7 @@ export function parseAdjudication(state: GameState, hunter: Hunter, raw: unknown
  * Mystery design guidance, paraphrased from the Fate Horror Toolkit (monster design, CC BY 3.0) and the
  * Liminal Horror SRD (doom clock structure, CC BY 4.0). See SRD_ATTRIBUTION.md.
  */
-const MYSTERY_DESIGN = `You design one-session monster-hunting mysteries for a Monster of the Week style game, played by 2-5 hunters.
+const MYSTERY_DESIGN = `You design one-session monster-hunting mysteries for a Monster Hunt game, played by 2-5 hunters.
 Setting: a specific small American town with texture (a diner, a local institution, a festival, a landmark).
 Monster design:
 - Give it a theme (what it symbolizes beyond being scary) and a purpose (why it does what it does). It is not mindless.

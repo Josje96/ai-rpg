@@ -4,7 +4,7 @@ A TypeScript CLI foundation for tabletop RPG sessions with an AI game master and
 
 ## Status
 
-**Playable: Monster of the Week-style monster hunting with an AI Keeper**, in the terminal, hot-seat on one device (works over SSH from a phone). Up to 5 hunters, any mix of humans and AI. Everything else (the other seven systems, the party planner, the SCP setting) is still a rules slice or scaffold.
+**Playable: Monster Hunt — action-horror monster hunting with an AI Keeper**, in the terminal, hot-seat on one device (works over SSH from a phone). Up to 5 hunters, any mix of humans and AI. Everything else (the other seven systems, the party planner, the SCP setting) is still a rules slice or scaffold.
 
 ## Play
 
@@ -42,7 +42,7 @@ The Keeper (GM model) only *proposes*: every reply is JSON that the engine valid
 
 ### About the rules text
 
-*Monster of the Week* (Evil Hat) isn't openly licensed. This project implements the Powered by the Apocalypse mechanics with **original** hunter types, move wording and mystery. Don't paste the book's playbook or move text into the repo.
+Monster Hunt is this project's own name for its Powered by the Apocalypse game. The PbtA framework itself is openly used by dozens of games; published PbtA titles aren't open to copying, so this repo implements the mechanics with **original** hunter types, move wording and mysteries. Don't paste any published book's playbook or move text into the repo.
 
 ## Requirements
 
@@ -81,7 +81,7 @@ Prices change; recheck before deployment. For API behavior, see [GPT-6 Luna on O
 ## Current structure
 
 - `src/cli.ts` — executable entry point and CLI commands (`play` starts the game)
-- `src/motw/` — the playable game: rules, hunter types, mysteries, keeper prompts/validation, game loop, terminal UI, saves
+- `src/hunt/` — the playable game: rules, hunter types, mysteries, keeper prompts/validation, game loop, terminal UI, saves
 - `scripts/playtest.ts` — live playtest against the real models (`bun run playtest`, a few cents)
 - `src/domain/` — deterministic game primitives, including dice
 - `src/rpg/` — seven rules adapters plus registry (each is an initial mechanics slice, not complete system coverage)

@@ -6,6 +6,7 @@ export const dnd5e2014Adapter = {
   id: "dnd5e-2014",
   name: "D&D 5e (2014)",
   description: "2014 core ability checks and skill rules (SRD 5.1-compatible).",
+  fit: ["dungeon crawls", "high fantasy", "combat-heavy adventure"],
 } satisfies RpgSystemAdapter;
 
 export const ABILITIES = [

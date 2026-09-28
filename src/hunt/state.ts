@@ -31,6 +31,8 @@ export type LogEntry = {
 
 export type GameState = {
   version: 1;
+  /** Which system adapter owns this save; older saves predate the field and default to monster-hunt. */
+  system: string;
   id: string;
   createdAt: string;
   updatedAt: string;
@@ -66,7 +68,7 @@ export type GameState = {
 export function newGame(mystery: Mystery, hunters: Hunter[]): GameState {
   const now = new Date().toISOString();
   return {
-    version: 1, id: randomUUID().slice(0, 8), createdAt: now, updatedAt: now, mystery, hunters,
+    version: 1, system: "monster-hunt", id: randomUUID().slice(0, 8), createdAt: now, updatedAt: now, mystery, hunters,
     countdown: 0, monsterHarm: 0, weaknessKnown: false, cluesFound: [], log: [], summary: "",
     summarizedThrough: 0, round: 0, turn: 0, status: "active", costUsd: 0,
   };
@@ -197,10 +199,12 @@ export async function saveGame(state: GameState, dir = savesDir()): Promise<stri
 export async function loadGame(id: string, dir = savesDir()): Promise<GameState> {
   const state = JSON.parse(await readFile(join(dir, `${id}.json`), "utf8")) as GameState;
   if (state.version !== 1) throw new Error(`Unsupported save version ${String(state.version)}`);
+  // Saves from before the adapter boundary have no system tag; they're all monster-hunt.
+  state.system ??= "monster-hunt";
   return state;
 }
 
-export type SaveSummary = { id: string; title: string; hunters: string; updatedAt: string; status: GameState["status"] };
+export type SaveSummary = { id: string; system: string; title: string; hunters: string; updatedAt: string; status: GameState["status"] };
 
 export async function listSaves(dir = savesDir()): Promise<SaveSummary[]> {
   let files: string[];
@@ -213,7 +217,7 @@ export async function listSaves(dir = savesDir()): Promise<SaveSummary[]> {
   for (const file of files) {
     try {
       const s = JSON.parse(await readFile(join(dir, file), "utf8")) as GameState;
-      out.push({ id: s.id, title: s.mystery.title, hunters: s.hunters.map((h) => h.name).join(", "), updatedAt: s.updatedAt, status: s.status });
+      out.push({ id: s.id, system: s.system ?? "monster-hunt", title: s.mystery.title, hunters: s.hunters.map((h) => h.name).join(", "), updatedAt: s.updatedAt, status: s.status });
     } catch {
       // skip unreadable files
     }

@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { Game } from "../src/motw/game.js";
-import { Keeper } from "../src/motw/keeper.js";
-import { setupGame } from "../src/motw/setup.js";
-import type { GameState } from "../src/motw/state.js";
+import { Game } from "../src/hunt/game.js";
+import { Keeper } from "../src/hunt/keeper.js";
+import { setupGame } from "../src/hunt/setup.js";
+import type { GameState } from "../src/hunt/state.js";
 import { FakeModel, ScriptIO, scriptedRandom } from "./helpers/fakes.js";
 
 const noEffects = {};
@@ -217,7 +217,7 @@ test("the keeper is told whether the clock has moved", async () => {
 });
 
 test("key-moment art: monster reveal (once), weakness, clock meter, hunter out, and the ending", async () => {
-  const { COUNTY_FAIR_ART, outOfActionArt } = await import("../src/motw/mysteries/art.js");
+  const { COUNTY_FAIR_ART, outOfActionArt } = await import("../src/hunt/mysteries/art.js");
   const model = new FakeModel({
     gm: [
       { narration: "The fair glows.", effects: {} },
@@ -253,7 +253,7 @@ test("key-moment art: monster reveal (once), weakness, clock meter, hunter out, 
 });
 
 test("landing a hit on the monster counts as seeing it", async () => {
-  const { MERCY_LAKE_ART } = await import("../src/motw/mysteries/art.js");
+  const { MERCY_LAKE_ART } = await import("../src/hunt/mysteries/art.js");
   const model = new FakeModel({
     gm: [{ narration: "Dusk.", effects: {} }, { roll: null, narration: "You strike the lantern-bearer.", effects: { monsterHarm: 2 } }],
     player: [],

@@ -16,7 +16,7 @@ test("systems lists all built-in RPG adapters", () => {
     "- Pathfinder 2e Remaster [pathfinder2-remaster]",
     "- Cairn 2e [cairn-2e]",
     "- Basic Roleplaying [basic-roleplaying]",
-    "- Monster of the Week (PbtA) [monster-of-the-week]",
+    "- Monster Hunt (PbtA) [monster-hunt]",
   ]);
 });
 

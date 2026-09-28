@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { OpenRouterClient } from "../ai/openrouter.js";
 import { ModelError, type ModelClient } from "../ai/provider.js";
+import { playCommand } from "../rpg/play.js";
 import { Game, HELP, type GameIO } from "./game.js";
 import { Keeper } from "./keeper.js";
 import { SetupCancelled, setupGame } from "./setup.js";
@@ -16,10 +17,10 @@ export function loadProjectEnv(): void {
 
 export async function playMenu(io: GameIO, model: ModelClient, options: { debug?: boolean } = {}): Promise<number> {
   const keeper = new Keeper(model);
-  const saves = (await listSaves()).filter((s) => s.status === "active");
+  const saves = (await listSaves()).filter((s) => s.status === "active" && s.system === "monster-hunt");
   let state: GameState | undefined;
 
-  io.show("heading", "Monster of the Week, with an AI Keeper");
+  io.show("heading", "Monster Hunt, with an AI Keeper");
   const menu = [
     ...(saves[0] ? [`Continue: ${saves[0].title} (${saves[0].hunters})`] : []),
     ...(saves.length > 1 ? ["Load another saved hunt"] : []),
@@ -61,7 +62,7 @@ export async function runPlay(): Promise<number> {
   loadProjectEnv();
   const io = new TerminalIO();
   try {
-    return await playMenu(io, OpenRouterClient.fromEnv(), { debug: process.env.DEBUG === "1" });
+    return await playCommand(io, OpenRouterClient.fromEnv(), { debug: process.env.DEBUG === "1" });
   } catch (error) {
     io.show("error", error instanceof ModelError ? error.message : `Something broke: ${error instanceof Error ? error.stack : String(error)}`);
     return 1;

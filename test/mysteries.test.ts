@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { Game } from "../src/motw/game.js";
-import { Keeper } from "../src/motw/keeper.js";
-import { parseMystery } from "../src/motw/mystery.js";
-import { BUILT_IN_MYSTERIES } from "../src/motw/mysteries/index.js";
-import { FATE_HORROR_TOOLKIT_CREDIT, LIMINAL_HORROR_CREDIT } from "../src/motw/mysteries/credits.js";
-import { setupGame } from "../src/motw/setup.js";
+import { Game } from "../src/hunt/game.js";
+import { Keeper } from "../src/hunt/keeper.js";
+import { parseMystery } from "../src/hunt/mystery.js";
+import { BUILT_IN_MYSTERIES } from "../src/hunt/mysteries/index.js";
+import { FATE_HORROR_TOOLKIT_CREDIT, LIMINAL_HORROR_CREDIT } from "../src/hunt/mysteries/credits.js";
+import { setupGame } from "../src/hunt/setup.js";
 import { FakeModel, ScriptIO, scriptedRandom } from "./helpers/fakes.js";
 
 test("every built-in mystery passes the same validation as generated ones, unchanged", () => {
@@ -63,7 +63,7 @@ test("AI-written mysteries get design guidance and credits", async () => {
 });
 
 test("every mystery has all five pieces of art in two sizes, plain ASCII", async () => {
-  const { GENERIC_ART, outOfActionArt, ART_KEYS, SMALL_WIDTH, LARGE_WIDTH } = await import("../src/motw/mysteries/art.js");
+  const { GENERIC_ART, outOfActionArt, ART_KEYS, SMALL_WIDTH, LARGE_WIDTH } = await import("../src/hunt/mysteries/art.js");
   const sets = [...BUILT_IN_MYSTERIES.map((m) => [m.id, m.art] as const), ["generated", GENERIC_ART] as const];
   const check = (label: string, text: string, max: number) => {
     assert.ok(text.trim(), `${label} is empty`);

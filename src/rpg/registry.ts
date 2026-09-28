@@ -1,4 +1,4 @@
-import type { RpgSystemAdapter } from "./adapter.js";
+import { isPlayable, type PlayableRpgSystem, type RpgSystemAdapter } from "./adapter.js";
 import { dnd5e2014Adapter } from "./dnd5e-2014.js";
 import { shadowrunAnarchy2Adapter } from "./shadowrun-anarchy-2.js";
 import { fateCondensedAdapter } from "./fate-condensed.js";
@@ -6,7 +6,7 @@ import { bladesInTheDarkAdapter } from "./blades-in-the-dark.js";
 import { pathfinder2RemasterAdapter } from "./pathfinder2-remaster.js";
 import { cairn2Adapter } from "./cairn-2e.js";
 import { basicRoleplayingAdapter } from "./basic-roleplaying.js";
-import { monsterOfTheWeekAdapter } from "../motw/rules.js";
+import { monsterHuntSystem } from "../hunt/adapter.js";
 
 /** Explicit registry; game-specific adapters can be plugged in as they are implemented. */
 export class RpgSystemRegistry {
@@ -23,6 +23,11 @@ export class RpgSystemRegistry {
     return [...this.#systems.values()];
   }
 
+  /** Systems with a full playable session, in registry order. */
+  listPlayable(): readonly PlayableRpgSystem[] {
+    return this.list().filter(isPlayable);
+  }
+
   get(id: string): RpgSystemAdapter | undefined {
     return this.#systems.get(id);
   }
@@ -37,6 +42,6 @@ export function createDefaultRpgRegistry(): RpgSystemRegistry {
   registry.register(pathfinder2RemasterAdapter);
   registry.register(cairn2Adapter);
   registry.register(basicRoleplayingAdapter);
-  registry.register(monsterOfTheWeekAdapter);
+  registry.register(monsterHuntSystem);
   return registry;
 }

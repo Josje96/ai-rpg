@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { effectiveRoll, PLAYBOOKS } from "../src/motw/playbooks.js";
-import { applyLuckToRoll, bandFor, describeRoll, harmStatus, rollMove } from "../src/motw/rules.js";
+import { effectiveRoll, PLAYBOOKS } from "../src/hunt/playbooks.js";
+import { applyLuckToRoll, bandFor, describeRoll, harmStatus, rollMove } from "../src/hunt/rules.js";
 
 test("2d6 + stat bands: 10+ strong, 7-9 mixed, 6- miss", () => {
   assert.deepEqual([6, 7, 9, 10].map(bandFor), ["miss", "mixed", "mixed", "strong"]);

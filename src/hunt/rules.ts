@@ -3,14 +3,15 @@ import type { RandomInt } from "../domain/dice.js";
 import type { RpgSystemAdapter } from "../rpg/adapter.js";
 
 /**
- * Monster of the Week-style rules (Powered by the Apocalypse engine).
- * Mechanics only; all wording here is original. The book itself is not openly licensed,
- * so don't paste its playbook or move text into this repo.
+ * Monster Hunt: action-horror monster hunting on the Powered by the Apocalypse engine.
+ * Mechanics only; all wording here is original — this project uses the open PbtA framework,
+ * not any published game's text, so don't paste a published book's playbook or move text in.
  */
-export const monsterOfTheWeekAdapter = {
-  id: "monster-of-the-week",
-  name: "Monster of the Week (PbtA)",
+export const monsterHuntAdapter = {
+  id: "monster-hunt",
+  name: "Monster Hunt (PbtA)",
   description: "Action-horror monster hunting: 2d6 + stat moves, harm, Luck. Playable with an AI keeper.",
+  fit: ["monster hunting", "small-town horror", "investigation", "action horror", "modern day"],
 } satisfies RpgSystemAdapter;
 
 export const STATS = ["charm", "cool", "sharp", "tough", "weird"] as const;

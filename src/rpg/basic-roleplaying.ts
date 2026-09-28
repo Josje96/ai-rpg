@@ -4,6 +4,7 @@ export const basicRoleplayingAdapter = {
   id: "basic-roleplaying",
   name: "Basic Roleplaying",
   description: "Universal percentile skill-check engine.",
+  fit: ["universal", "sandbox", "classic fantasy", "horror", "modern day"],
 } satisfies RpgSystemAdapter;
 
 export type BrpOutcome = "critical-success" | "special-success" | "success" | "failure" | "fumble";

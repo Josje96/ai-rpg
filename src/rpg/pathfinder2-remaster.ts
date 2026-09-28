@@ -4,6 +4,7 @@ export const pathfinder2RemasterAdapter = {
   id: "pathfinder2-remaster",
   name: "Pathfinder 2e Remaster",
   description: "d20 checks with four degrees of success and natural die adjustments.",
+  fit: ["tactical fantasy", "structured encounters", "character-build-focused play"],
 } satisfies RpgSystemAdapter;
 
 export type PathfinderDegree = "critical-failure" | "failure" | "success" | "critical-success";

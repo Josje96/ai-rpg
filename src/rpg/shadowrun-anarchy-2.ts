@@ -6,6 +6,7 @@ export const shadowrunAnarchy2Adapter = {
   id: "shadowrun-anarchy-2",
   name: "Shadowrun: Anarchy 2.0",
   description: "Narrative-first Shadowrun adapter; initial d6 hit-pool mechanics.",
+  fit: ["cyberpunk heists", "runs and shadow ops", "magic-plus-tech urban fantasy"],
 } satisfies RpgSystemAdapter;
 
 export type AnarchyPoolInput = {

@@ -4,6 +4,7 @@ export const cairn2Adapter = {
   id: "cairn-2e",
   name: "Cairn 2e",
   description: "Rules-light adventure with roll-under attribute saves.",
+  fit: ["rules-light exploration", "dark forests", "improvised adventure"],
 } satisfies RpgSystemAdapter;
 
 export type CairnSaveResult = "success" | "failure";

@@ -6,6 +6,7 @@ export const bladesInTheDarkAdapter = {
   id: "blades-in-the-dark",
   name: "Blades in the Dark",
   description: "Crew-based heists with action, downtime, and consequence-driven rolls.",
+  fit: ["heists", "criminal crews", "industrial fantasy", "score-and-downtime play"],
 } satisfies RpgSystemAdapter;
 
 export type BladesOutcome = "failure" | "partial" | "success" | "critical";

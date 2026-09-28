@@ -6,6 +6,7 @@ export const fateCondensedAdapter = {
   id: "fate-condensed",
   name: "Fate Condensed",
   description: "Genre-flexible narrative system using 4dF plus skill ratings.",
+  fit: ["genre-flexible", "pulp adventure", "narrative-first play", "any setting"],
 } satisfies RpgSystemAdapter;
 
 export type FateOutcome = "failure" | "tie" | "success" | "success-with-style";

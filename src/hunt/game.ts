@@ -1,6 +1,7 @@
 import { randomInt } from "node:crypto";
 import type { ModelClient } from "../ai/provider.js";
 import type { RandomInt } from "../domain/dice.js";
+import type { GameIO } from "../rpg/adapter.js";
 import { aiHunterAction, weaponHarm, type Choice, type Effects, type Keeper, type KeeperReply } from "./keeper.js";
 import { COUNTDOWN_LENGTH } from "./mystery.js";
 import { countdownMeter, GENERIC_ART, outOfActionArt } from "./mysteries/art.js";
@@ -14,17 +15,7 @@ import {
   spendLuck, type GameState, type Hunter,
 } from "./state.js";
 
-/** Everything the game needs from a front end. The terminal implements it; a web or Discord UI could too. */
-export interface GameIO {
-  show(kind: "keeper" | "hunter" | "roll" | "system" | "info" | "error" | "heading", text: string, who?: string): void;
-  /** Terminal art in several sizes, largest first; show the largest that fits, or nothing. */
-  art(variants: readonly string[]): void;
-  /** Resolves "/quit" if input ends (Ctrl-D, closed SSH). */
-  ask(prompt: string): Promise<string>;
-  choose(prompt: string, options: readonly string[]): Promise<number>;
-  confirm(prompt: string): Promise<boolean>;
-  busy(label: string): () => void;
-}
+export type { GameIO };
 
 export type GameDeps = {
   keeper: Keeper;

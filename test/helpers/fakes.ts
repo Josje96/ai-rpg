@@ -1,5 +1,5 @@
 import type { ChatMessage, JsonCompletion, ModelClient } from "../../src/ai/provider.js";
-import type { GameIO } from "../../src/motw/game.js";
+import type { GameIO } from "../../src/hunt/game.js";
 
 /** Scripted model: returns queued replies per role and records every request. */
 export class FakeModel implements ModelClient {

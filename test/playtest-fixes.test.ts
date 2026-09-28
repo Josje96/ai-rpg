@@ -1,9 +1,9 @@
 /** Regression tests for issues found in the first real session (Mercy Lake, 2026-09-26). */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { Game } from "../src/motw/game.js";
-import { aiHunterAction, Keeper, soundsRepetitive } from "../src/motw/keeper.js";
-import { capitalize, setupGame } from "../src/motw/setup.js";
+import { Game } from "../src/hunt/game.js";
+import { aiHunterAction, Keeper, soundsRepetitive } from "../src/hunt/keeper.js";
+import { capitalize, setupGame } from "../src/hunt/setup.js";
 import { FakeModel, ScriptIO, scriptedRandom } from "./helpers/fakes.js";
 
 async function oneHunterGame(gm: unknown[], player: unknown[] = []) {
