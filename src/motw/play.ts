@@ -8,7 +8,7 @@ import { SetupCancelled, setupGame } from "./setup.js";
 import { listSaves, loadGame, saveGame, type GameState } from "./state.js";
 import { TerminalIO } from "./terminal.js";
 
-/** Loads the project's .env (works from src/ via tsx and from dist/ after a build). */
+/** Loads the project's .env (works from src/ via bun and from dist/ after a build). */
 export function loadProjectEnv(): void {
   const path = fileURLToPath(new URL("../../.env", import.meta.url));
   if (existsSync(path)) process.loadEnvFile(path);

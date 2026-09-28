@@ -71,7 +71,7 @@ export class Game {
     } catch (error) {
       if (!(error instanceof GameInterrupted)) throw error;
       await this.deps.save(this.state);
-      this.deps.io.show("info", "Game saved. When the model is back, resume with: npm run play");
+      this.deps.io.show("info", "Game saved. When the model is back, resume with: bun run play");
       return false;
     }
   }
@@ -102,7 +102,7 @@ export class Game {
           const input = hunter.controller.kind === "human" ? await this.#humanTurn(hunter) : await this.#aiTurn(hunter);
           if (input.kind === "quit") {
             await deps.save(state);
-            deps.io.show("info", "Game saved. Pick it back up with: npm run play");
+            deps.io.show("info", "Game saved. Pick it back up with: bun run play");
             return false;
           }
           if (input.kind === "action") await this.#resolveAction(hunter, input.text);

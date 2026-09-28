@@ -1,8 +1,8 @@
 /**
  * Live playtest against the real models: plays two scripted humans (who never spend Luck) plus one AI hunter
  * and prints the transcript with timings. Costs a few cents.
- *   npm run playtest            The Lantern at Mercy Lake, with actions written for it
- *   npm run playtest -- 3       mystery #3 from the menu, with generic investigator actions
+ *   bun run playtest            The Lantern at Mercy Lake, with actions written for it
+ *   bun run playtest -- 3       mystery #3 from the menu, with generic investigator actions
  */
 import { OpenRouterClient } from "../src/ai/openrouter.js";
 import { Game, type GameIO } from "../src/motw/game.js";

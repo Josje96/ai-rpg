@@ -4,23 +4,22 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "bun": ">=1.2"
   },
   "bin": {
     "tabletop-ai": "dist/cli.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "dev": "tsx src/cli.ts",
-    "start": "node dist/cli.js",
-    "test": "tsx --test test/*.test.ts",
-    "typecheck": "tsc --noEmit",
-    "play": "tsx src/cli.ts play",
-    "playtest": "tsx scripts/playtest.ts"
+    "build": "bunx tsc -p tsconfig.build.json",
+    "dev": "bun src/cli.ts",
+    "start": "bun dist/cli.js",
+    "test": "bun test test/",
+    "typecheck": "bunx tsc --noEmit",
+    "play": "bun src/cli.ts play",
+    "playtest": "bun scripts/playtest.ts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "tsx": "^4.20.0",
     "typescript": "^5.8.0"
   }
 }

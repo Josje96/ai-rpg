@@ -9,8 +9,8 @@ A TypeScript CLI foundation for tabletop RPG sessions with an AI game master and
 ## Play
 
 ```sh
-npm install
-npm run play
+bun install
+bun run play
 ```
 
 Needs `OPENROUTER_API_KEY` in `.env` (see `.env.example`). A session is a few cents: a six-round playtest cost about $0.02.
@@ -21,7 +21,7 @@ Needs `OPENROUTER_API_KEY` in `.env` (see `.env.example`). A session is a few ce
 - **Win** by finding the monster's weakness through clues and using it before the six-step countdown runs out.
 - **Commands:** `/sheet`, `/party`, `/clues`, `/clock`, `/recap`, `/ask <question>` (out of character), `/rules`, `/credits`, `/pass`, `/save`, `/quit`.
 - **Terminal art** marks the key moments: each story's title, the monster's first clear appearance, discovering its weakness, a hunter going out of action, and a win or loss screen. A clock meter (`[###---] The Plot Thickens`) shows whenever the countdown moves. Every piece comes in two sizes (up to 72 and 40 columns); the terminal shows the largest that fits, centered. Plain ASCII.
-- **Saves** happen after every turn (`~/.local/share/tabletop-ai/saves`). Ctrl-C, Ctrl-D or a dropped SSH connection saves too; `npm run play` offers to continue.
+- **Saves** happen after every turn (`~/.local/share/tabletop-ai/saves`). Ctrl-C, Ctrl-D or a dropped SSH connection saves too; `bun run play` offers to continue.
 
 ### Mysteries
 
@@ -34,7 +34,7 @@ Needs `OPENROUTER_API_KEY` in `.env` (see `.env.example`). A session is a few ce
 | Sweetwater | A reservoir town's founders have fed something under the dam for a century. | Liminal Horror: Frog-Men, Dead Gods |
 | The County Fair | Gremlins wreck the fair, chasing a carnie's lucky charm. Lighter tone. | Liminal Horror: Gremlins |
 
-Each mystery shows content warnings in the menu. "Surprise me" asks the Keeper model to write a new one, guided by monster-design advice from the Fate Horror Toolkit and Liminal Horror's Doom Clock. In-game `/credits` shows attribution; see [`SRD_ATTRIBUTION.md`](SRD_ATTRIBUTION.md). To playtest one live: `npm run playtest -- <menu number>`.
+Each mystery shows content warnings in the menu. "Surprise me" asks the Keeper model to write a new one, guided by monster-design advice from the Fate Horror Toolkit and Liminal Horror's Doom Clock. In-game `/credits` shows attribution; see [`SRD_ATTRIBUTION.md`](SRD_ATTRIBUTION.md). To playtest one live: `bun run playtest -- <menu number>`.
 
 ### How the AI is kept honest
 
@@ -46,26 +46,23 @@ The Keeper (GM model) only *proposes*: every reply is JSON that the engine valid
 
 ## Requirements
 
-- Node.js 22+
-- npm
-
-Bun can also run the TypeScript entry point, but this scaffold uses npm scripts so it can be run in environments without Bun.
+- [Bun](https://bun.sh) 1.2+
 
 ## Quick start
 
 ```sh
-npm install
-npm run test
-npm run typecheck
-npm run play
-npm run dev -- systems
-npm run dev -- settings
-npm run dev -- scenario scp-foundation quiet-annex-001
-npm run dev -- roll 2d6+3
-npm run dev -- shadowrun-roll 6 --advantage
-npm run dev -- party-plan 4 2 --gm ai
-npm run dev -- party-plan 4 2 --gm human
-npm run dev -- party-plan 4 2 --randomize
+bun install
+bun run test
+bun run typecheck
+bun run play
+bun run dev -- systems
+bun run dev -- settings
+bun run dev -- scenario scp-foundation quiet-annex-001
+bun run dev -- roll 2d6+3
+bun run dev -- shadowrun-roll 6 --advantage
+bun run dev -- party-plan 4 2 --gm ai
+bun run dev -- party-plan 4 2 --gm human
+bun run dev -- party-plan 4 2 --randomize
 ```
 
 ## Model recommendation (checked Sep 2026)
@@ -85,7 +82,7 @@ Prices change; recheck before deployment. For API behavior, see [GPT-6 Luna on O
 
 - `src/cli.ts` — executable entry point and CLI commands (`play` starts the game)
 - `src/motw/` — the playable game: rules, hunter types, mysteries, keeper prompts/validation, game loop, terminal UI, saves
-- `scripts/playtest.ts` — live playtest against the real models (`npm run playtest`, a few cents)
+- `scripts/playtest.ts` — live playtest against the real models (`bun run playtest`, a few cents)
 - `src/domain/` — deterministic game primitives, including dice
 - `src/rpg/` — seven rules adapters plus registry (each is an initial mechanics slice, not complete system coverage)
 - `src/settings/` — system-neutral setting modules and case files
