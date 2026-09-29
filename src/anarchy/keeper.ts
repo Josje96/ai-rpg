@@ -2,11 +2,12 @@ import type { ChatMessage, ModelClient } from "../ai/provider.js";
 import { CLOCK_LENGTH } from "./jobs.js";
 import { STATS, describePool, conditionStatus, type PoolRoll, type Stat } from "./rules.js";
 import { activeRunners, clockAllowed, type Job, type RunState, type Runner } from "./state.js";
-import { asObj, asStr, clamp, parseChoice, type Choice } from "../session/parse.js";
-
-export type { Choice };
+import { asObj, asStr, clamp, parseChoice, type Choice, type Raw } from "../session/parse.js";
+import { aiPlayerAction, soundsRepetitive as sharedSoundsRepetitive } from "../session/player.js";
 import { recentLog, type LogEntry } from "../session/types.js";
 import { summarizeLog } from "../session/summarize.js";
+
+export type { Choice };
 
 /**
  * The GM (AI game master) proposes; the engine disposes. Every reply is a JSON object that is
@@ -310,25 +311,8 @@ Write original content only; don't copy published adventures. Reply with only JS
 
 // ---------- AI runners ----------
 
-/** Tics the player model falls into: "it isn't just X, it's Y" and friends. */
-const TIC = /\b(?:is(?:n'?t| not)|was(?:n'?t| not)|are(?:n'?t| not)) (?:just|only|merely)\b|\bnot (?:just|only|merely) [^.;,]+[;,] (?:it'?s|but)\b/i;
-
-function firstWords(text: string, n = 4): string {
-  return text.toLowerCase().replace(/[^a-z' ]/g, "").split(/\s+/).filter(Boolean).slice(0, n).join(" ");
-}
-
-function addressee(line: string): string | null {
-  const m = /^\W*([A-Z][\w'-]*(?: [A-Z][\w'-]*)?),/.exec(line.trim());
-  return m ? m[1]!.toLowerCase() : null;
-}
-
-/** Repeats a stock phrase, opens like one of its own recent lines, or keeps opening by calling the same person. */
 export function soundsRepetitive(line: string, recent: readonly string[]): boolean {
-  if (TIC.test(line)) return true;
-  const opening = firstWords(line);
-  if (opening.split(" ").length >= 3 && recent.some((r) => firstWords(r) === opening)) return true;
-  const who = addressee(line);
-  return who !== null && recent.slice(-3).filter((r) => addressee(r) === who).length >= 2;
+  return sharedSoundsRepetitive(line, recent);
 }
 
 export async function aiRunnerAction(model: ModelClient, state: RunState, runner: Runner): Promise<{ say: string; act: string; costUsd: number }> {
@@ -357,18 +341,10 @@ Style: talk like a real person under pressure, plain and specific. Never use "it
         `\nWhat does ${runner.name} do?`,
     },
   ];
-  let cost = 0;
-  let result = { say: "", act: "" };
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const { data, costUsd } = await model.completeJson({ role: "player", maxTokens: 300, messages });
-    cost += costUsd;
-    const o = asObj(data);
-    result = { say: asStr(o.say, 300).replace(/^["'\u201c\u201d\s]+|["'\u201c\u201d\s]+$/g, ""), act: asStr(o.do, 400) || "I watch the exits and wait for an opening." };
-    if (!soundsRepetitive(`${result.say} ${result.act}`, mine)) break;
-    messages.push(
-      { role: "assistant", content: JSON.stringify({ say: result.say, do: result.act }) },
-      { role: "user", content: "That repeats a stock phrase or your earlier lines. Say something different, plainly, with no 'isn't just / not only' construction." },
-    );
-  }
-  return { ...result, costUsd: cost };
+  return aiPlayerAction(model, {
+    messages,
+    recentLines: mine,
+    rejectMessage: "That repeats a stock phrase or your earlier lines. Say something different, plainly, with no 'isn't just / not only' construction.",
+    defaultAct: "I watch the exits and wait for an opening.",
+  });
 }

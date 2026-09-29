@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { COUNTDOWN_LENGTH, type Mystery } from "./mystery.js";
 import type { Weapon } from "./playbooks.js";
 import { MAX_HARM, MAX_LUCK, MAX_STAT, STATS, XP_PER_IMPROVEMENT, harmStatus, type Stat, type Stats } from "./rules.js";
-import type { Controller, LogEntry } from "../session/types.js";
+import type { Controller, LogEntry, SessionBase } from "../session/types.js";
 
 export type { Controller, LogEntry } from "../session/types.js";
 
@@ -23,7 +23,7 @@ export type Hunter = {
   xp: number;
 };
 
-export type GameState = {
+export type GameState = SessionBase & {
   version: 1;
   /** Which system adapter owns this save; older saves predate the field and default to monster-hunt. */
   system: string;
@@ -48,15 +48,6 @@ export type GameState = {
    * Read a bad situation answers (the same hunter's next roll).
    */
   forward?: { hunter: string; others: boolean; source: string }[];
-  log: LogEntry[];
-  /** Running recap of everything before log[summarizedThrough]. */
-  summary: string;
-  summarizedThrough: number;
-  round: number;
-  /** Index into hunters of whose turn is next this round. */
-  turn: number;
-  status: "active" | "won" | "lost";
-  costUsd: number;
 };
 
 export function newGame(mystery: Mystery, hunters: Hunter[]): GameState {

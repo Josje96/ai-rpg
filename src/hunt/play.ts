@@ -7,7 +7,7 @@ import { Game, HELP, type GameIO } from "./game.js";
 import { Keeper } from "./keeper.js";
 import { SetupCancelled, setupGame } from "./setup.js";
 import { listSaves, loadGame, saveGame, type GameState } from "./state.js";
-import { TerminalIO } from "./terminal.js";
+import { TerminalIO } from "../session/terminal.js";
 
 /** Loads the project's .env (works from src/ via bun and from dist/ after a build). */
 export function loadProjectEnv(): void {

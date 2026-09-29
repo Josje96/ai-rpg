@@ -4,9 +4,18 @@ A TypeScript CLI foundation for tabletop RPG sessions with an AI game master and
 
 ## Status
 
-**Playable now: Monster Hunt (action-horror, PbtA) and Shadowrun-style runs (cyberpunk heists)**, with an AI game master, in the terminal, hot-seat on one device (works over SSH from a phone). Up to 5 party members, any mix of humans and AI. Everything else (the other seven systems, the party planner, the SCP setting) is still a rules slice or scaffold.
+**Playable now: Monster Hunt (action-horror, PbtA) and Shadowrun-style runs (cyberpunk heists)**, with an AI game master, in the terminal, hot-seat on one device (works over SSH from a phone). Up to 5 party members, any mix of humans and AI. `play` asks what you feel like ("a cyberpunk heist", "hunt a monster in a small town") and picks the system for you; Enter gets the menu instead. Everything else (the other seven systems, the party planner, the SCP setting) is still a rules slice or scaffold.
 
 ## Play
+
+```sh
+git clone <this repo>
+cd ai-rpg
+./install.sh          # Linux/macOS/WSL — or: powershell -ExecutionPolicy Bypass -File install.ps1 (Windows)
+bun run play
+```
+
+The installer puts Bun 1.2+ on the machine if it's missing, installs dependencies, and creates `.env` from `.env.example` (it will ask for your OpenRouter key; skip and edit `.env` by hand if you prefer). Prefer doing it yourself:
 
 ```sh
 bun install
@@ -46,7 +55,7 @@ Monster Hunt is this project's own name for its Powered by the Apocalypse game. 
 
 ## Requirements
 
-- [Bun](https://bun.sh) 1.2+
+- [Bun](https://bun.sh) 1.2+ (`./install.sh` or `install.ps1` installs it for you; Linux, macOS, WSL, and Windows)
 
 ## Quick start
 
@@ -91,4 +100,4 @@ Prices change; recheck before deployment. For API behavior, see [GPT-6 Luna on O
 - `src/ai/` — role-specific model and reasoning configuration, and the OpenRouter client (any OpenAI-compatible endpoint via `OPENROUTER_BASE_URL`)
 - `test/` — behavior-focused tests
 
-Keep game logic independent of the CLI so a future Discord transport can call the same engine. The D&D adapter uses SRD 5.1-compatible rules; the required attribution is in [`SRD_ATTRIBUTION.md`](SRD_ATTRIBUTION.md). SCP-derived setting content and its share-alike notice are isolated under `src/settings/scp/`. Before distributing adapters, check each game's license and required attribution. Next slices: deepen the Shadowrun system (more archetypes, matrix and magic detail), then setup-time system matching against what the players asked for.
+Keep game logic independent of the CLI so a future Discord transport can call the same engine. The D&D adapter uses SRD 5.1-compatible rules; the required attribution is in [`SRD_ATTRIBUTION.md`](SRD_ATTRIBUTION.md). SCP-derived setting content and its share-alike notice are isolated under `src/settings/scp/`. Before distributing adapters, check each game's license and required attribution. Next slices: deepen the Shadowrun system (more archetypes, matrix and magic detail), D&D 5e as a third fully playable system, then per-system playtest scripts.

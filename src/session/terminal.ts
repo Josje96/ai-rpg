@@ -1,5 +1,5 @@
 import { createInterface, type Interface } from "node:readline/promises";
-import type { GameIO } from "./game.js";
+import type { GameIO } from "../rpg/adapter.js";
 
 const useColor = process.stdout.isTTY && !process.env.NO_COLOR;
 const paint = (code: string) => (text: string) => (useColor ? `\x1b[${code}m${text}\x1b[0m` : text);

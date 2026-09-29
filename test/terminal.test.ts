@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { PassThrough } from "node:stream";
 import test from "node:test";
-import { TerminalIO, wrap } from "../src/hunt/terminal.js";
+import { TerminalIO, wrap } from "../src/session/terminal.js";
 
 function io() {
   const input = new PassThrough();
