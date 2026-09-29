@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { OpenRouterClient } from "../ai/openrouter.js";
 import { ModelError, type ModelClient } from "../ai/provider.js";
@@ -12,7 +12,26 @@ import { TerminalIO } from "../session/terminal.js";
 /** Loads the project's .env (works from src/ via bun and from dist/ after a build). */
 export function loadProjectEnv(): void {
   const path = fileURLToPath(new URL("../../.env", import.meta.url));
-  if (existsSync(path)) process.loadEnvFile(path);
+  if (!existsSync(path)) return;
+  if (typeof process.loadEnvFile === "function") {
+    process.loadEnvFile(path);
+    return;
+  }
+  // Fallback for runtimes without process.loadEnvFile (e.g. Bun): a minimal
+  // KEY=VALUE parser that never overwrites variables already in the environment.
+  const text = readFileSync(path, "utf8");
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const eq = line.indexOf("=");
+    if (eq <= 0) continue;
+    const key = line.slice(0, eq).trim();
+    let value = line.slice(eq + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    if (!(key in process.env)) process.env[key] = value;
+  }
 }
 
 export async function playMenu(io: GameIO, model: ModelClient, options: { debug?: boolean } = {}): Promise<number> {
