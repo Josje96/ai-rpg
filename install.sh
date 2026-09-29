@@ -1,10 +1,42 @@
 #!/usr/bin/env bash
 # Tabletop AI installer for Linux, macOS, and other POSIX systems (incl. WSL).
+# Three ways to run it, all doing the same thing:
+#   curl -fsSL https://raw.githubusercontent.com/Josje96/ai-rpg/main/install.sh | bash
+#   bash install.sh            # from a downloaded copy
+#   ./install.sh               # from inside a clone
 # Installs Bun if needed, installs dependencies, and sets up .env.
-# Usage: ./install.sh
 set -euo pipefail
 
-cd "$(dirname "$0")"
+REPO_URL="https://github.com/Josje96/ai-rpg"
+CLONED=""
+
+# Find the project. Running as a file inside a checkout? Install there.
+# Piped in from curl (no script file)? Clone it first.
+SRC=""
+if [ -n "${BASH_SOURCE:-}" ] && [ -f "${BASH_SOURCE[0]:-}" ]; then
+  SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
+if [ ! -f "$SRC/package.json" ]; then
+  if [ -f "$PWD/package.json" ]; then
+    SRC="$PWD"
+  else
+    DEST="${TABLETOP_AI_DIR:-$HOME/ai-rpg}"
+    if ! command -v git >/dev/null 2>&1; then
+      echo "git is required to fetch the game (https://git-scm.com)." >&2
+      exit 1
+    fi
+    if [ -d "$DEST/.git" ]; then
+      echo "Updating $DEST..."
+      git -C "$DEST" pull --ff-only
+    else
+      echo "Cloning Tabletop AI into $DEST..."
+      git clone --depth 1 "$REPO_URL" "$DEST"
+    fi
+    SRC="$DEST"
+    CLONED=1
+  fi
+fi
+cd "$SRC"
 
 need_bun() {
   command -v bun >/dev/null 2>&1 || return 0
@@ -36,10 +68,14 @@ bun install
 if [ ! -f .env ]; then
   cp .env.example .env
   echo "Created .env from .env.example."
-  printf "Paste your OpenRouter API key (Enter to skip and edit .env later): "
-  read -r key
-  if [ -n "$key" ]; then
-    sed -i.bak "s|^OPENROUTER_API_KEY=\$|OPENROUTER_API_KEY=$key|" .env && rm -f .env.bak
+  KEY=""
+  # Read from the terminal, not stdin: when piped from curl, stdin IS this script.
+  if [ -r /dev/tty ]; then
+    printf "Paste your OpenRouter API key (Enter to skip and edit .env later): "
+    read -r KEY < /dev/tty || KEY=""
+  fi
+  if [ -n "$KEY" ]; then
+    sed -i.bak "s|^OPENROUTER_API_KEY=\$|OPENROUTER_API_KEY=$KEY|" .env && rm -f .env.bak
     echo "Key saved to .env."
   fi
 else
@@ -50,5 +86,12 @@ echo "Sanity check: typecheck..."
 bunx tsc --noEmit
 
 echo
-echo "Done. Start playing with:"
-echo "  bun run play"
+echo "Done."
+if [ -n "$CLONED" ]; then
+  echo "The game lives in $SRC. Play with:"
+  echo "  cd $SRC"
+  echo "  bun run play"
+else
+  echo "Start playing with:"
+  echo "  bun run play"
+fi

@@ -9,15 +9,20 @@ A TypeScript CLI foundation for tabletop RPG sessions with an AI game master and
 ## Play
 
 ```sh
-git clone <this repo>
-cd ai-rpg
-./install.sh          # Linux/macOS/WSL — or: powershell -ExecutionPolicy Bypass -File install.ps1 (Windows)
-bun run play
+curl -fsSL https://raw.githubusercontent.com/Josje96/ai-rpg/main/install.sh | bash
 ```
 
-The installer puts Bun 1.2+ on the machine if it's missing, installs dependencies, and creates `.env` from `.env.example` (it will ask for your OpenRouter key; skip and edit `.env` by hand if you prefer). Prefer doing it yourself:
+or on Windows:
+
+```powershell
+powershell -c "irm https://raw.githubusercontent.com/Josje96/ai-rpg/main/install.ps1 | iex"
+```
+
+The installer fetches the game into `~/ai-rpg` (or the current checkout if you run it from one), puts Bun 1.2+ on the machine if it's missing, installs dependencies, and creates `.env` from `.env.example` (it asks for your OpenRouter key; skip and edit `.env` by hand if you prefer). Set `TABLETOP_AI_DIR` to install somewhere else. Prefer doing it yourself:
 
 ```sh
+git clone https://github.com/Josje96/ai-rpg
+cd ai-rpg
 bun install
 bun run play
 ```
@@ -55,7 +60,7 @@ Monster Hunt is this project's own name for its Powered by the Apocalypse game. 
 
 ## Requirements
 
-- [Bun](https://bun.sh) 1.2+ (`./install.sh` or `install.ps1` installs it for you; Linux, macOS, WSL, and Windows)
+- [Bun](https://bun.sh) 1.2+ (the install one-liners set it up for you; Linux, macOS, WSL, and Windows)
 
 ## Quick start
 
