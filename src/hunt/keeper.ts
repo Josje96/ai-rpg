@@ -6,6 +6,10 @@ import { playbook } from "./playbooks.js";
 import { BASIC_MOVES, STATS, basicMove, describeRoll, harmStatus, type BasicMoveId, type MoveRoll, type Stat } from "./rules.js";
 import { activeHunters, countdownAllowed, type GameState, type Hunter } from "./state.js";
 import { formatEntry, recentLog, type LogEntry } from "../session/types.js";
+import { asObj, asStr, clamp, parseChoice, unquote, type Choice, type Raw } from "../session/parse.js";
+import { summarizeLog } from "../session/summarize.js";
+
+export type { Choice };
 
 /**
  * The keeper (AI GM) proposes; the engine disposes. Every reply is a JSON object that is validated and clamped here
@@ -27,7 +31,6 @@ export const NO_EFFECTS: Effects = {
   harm: [], heal: [], monsterHarm: 0, clues: [], countdown: false, weaknessDiscovered: false, monsterRevealed: false, outcome: null,
 };
 
-export type Choice = { prompt: string; options: string[] };
 export type KeeperReply = { narration: string; effects: Effects; warnings: string[]; choice: Choice | null };
 /** What a Kick some ass hit landed on; the engine applies weapon harm to the monster itself. */
 export type Target = "monster" | "minion" | "other";
@@ -147,12 +150,6 @@ function keeperMessages(state: GameState, task: string): ChatMessage[] {
 
 // ---------- validation ----------
 
-type Raw = Record<string, unknown>;
-const asObj = (v: unknown): Raw => (v && typeof v === "object" && !Array.isArray(v) ? (v as Raw) : {});
-const asStr = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
-const clamp = (v: unknown, min: number, max: number) =>
-  typeof v === "number" && Number.isFinite(v) ? Math.min(max, Math.max(min, Math.round(v))) : 0;
-
 function findHunter(state: GameState, ref: unknown): Hunter | undefined {
   if (typeof ref !== "string") return undefined;
   const key = ref.trim().toLowerCase();
@@ -192,13 +189,6 @@ export function parseEffects(state: GameState, raw: unknown, opts: { maxMonsterH
     effects: { harm, heal: healList, monsterHarm, clues, countdown: o.countdown === true, weaknessDiscovered, monsterRevealed: o.monsterRevealed === true, outcome },
     warnings,
   };
-}
-
-export function parseChoice(raw: unknown): Choice | null {
-  const o = asObj(raw);
-  const prompt = asStr(o.prompt, 240);
-  const options = (Array.isArray(o.options) ? o.options : []).map((x) => asStr(x, 140)).filter(Boolean).slice(0, 4);
-  return prompt && options.length >= 2 ? { prompt, options } : null;
 }
 
 function parseReply(state: GameState, raw: unknown, maxMonsterHarm: number): KeeperReply {
@@ -352,16 +342,7 @@ Reply: {"narration": "...", ${EFFECTS_SCHEMA}}`, 600);
   }
 
   async summarize(state: GameState, entries: readonly LogEntry[]): Promise<string> {
-    const { data, costUsd } = await this.model.completeJson({
-      role: "player",
-      maxTokens: 600,
-      messages: [
-        { role: "system", content: "You maintain a running recap of a tabletop horror game. Keep names, places, clues found, injuries, promises, and open threads. Under 220 words. Reply {\"summary\": \"...\"}." },
-        { role: "user", content: `Recap so far: ${state.summary || "(none)"}\n\nNew events:\n${entries.map(formatEntry).join("\n")}` },
-      ],
-    });
-    state.costUsd += costUsd;
-    return asStr(asObj(data).summary, 2500) || state.summary;
+    return summarizeLog(this.model, state, entries, "horror");
   }
 
   async generateMystery(state: Pick<GameState, "costUsd">, idea: string): Promise<Mystery> {
@@ -413,9 +394,6 @@ export function soundsRepetitive(line: string, recent: readonly string[]): boole
   const who = addressee(line);
   return who !== null && recent.slice(-3).filter((r) => addressee(r) === who).length >= 2;
 }
-
-/** Models sometimes wrap dialogue in its own quotes; the game adds them. */
-const unquote = (text: string) => text.replace(/^["'\u201c\u201d\s]+|["'\u201c\u201d\s]+$/g, "");
 
 export async function aiHunterAction(model: ModelClient, state: GameState, hunter: Hunter): Promise<{ say: string; act: string; costUsd: number }> {
   const book = playbook(hunter.playbook);

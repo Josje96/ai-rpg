@@ -31,9 +31,9 @@ test("listPlayable returns only systems with a full session", () => {
   assert.equal(isPlayable(sample), false);
 });
 
-test("the default registry exposes Monster Hunt as the first playable system", () => {
+test("the default registry exposes the playable systems with fit descriptions", () => {
   const playable = createDefaultRpgRegistry().listPlayable();
 
-  assert.deepEqual(playable.map((s) => s.id), ["monster-hunt"]);
-  assert.ok(playable[0]!.fit.length > 0);
+  assert.deepEqual(playable.map((s) => s.id), ["shadowrun-anarchy-2", "monster-hunt"]);
+  for (const system of playable) assert.ok(system.fit.length > 0);
 });

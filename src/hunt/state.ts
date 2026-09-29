@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { COUNTDOWN_LENGTH, type Mystery } from "./mystery.js";
@@ -176,48 +175,24 @@ export function recordClues(state: GameState, clues: readonly string[]): string[
 
 // ---------- saves ----------
 
-export function savesDir(env: Record<string, string | undefined> = process.env): string {
-  if (env.TABLETOP_AI_SAVES) return env.TABLETOP_AI_SAVES;
-  return join(env.XDG_DATA_HOME || join(homedir(), ".local", "share"), "tabletop-ai", "saves");
-}
+import { listSessionSaves, loadSession, saveSession, savesDir } from "../session/saves.js";
+export { savesDir };
 
 export async function saveGame(state: GameState, dir = savesDir()): Promise<string> {
-  await mkdir(dir, { recursive: true });
-  state.updatedAt = new Date().toISOString();
-  const path = join(dir, `${state.id}.json`);
-  const tmp = `${path}.tmp`;
-  await writeFile(tmp, JSON.stringify(state, null, 2));
-  await rename(tmp, path); // atomic, so a crash mid-save can't corrupt the game
-  return path;
+  return saveSession(state, dir);
 }
 
 export async function loadGame(id: string, dir = savesDir()): Promise<GameState> {
-  const state = JSON.parse(await readFile(join(dir, `${id}.json`), "utf8")) as GameState;
+  const state = await loadSession<GameState>(id, "monster-hunt", dir);
   if (state.version !== 1) throw new Error(`Unsupported save version ${String(state.version)}`);
-  // Saves from before the adapter boundary have no system tag; they're all monster-hunt.
-  state.system ??= "monster-hunt";
   return state;
 }
 
 export type SaveSummary = { id: string; system: string; title: string; hunters: string; updatedAt: string; status: GameState["status"] };
 
 export async function listSaves(dir = savesDir()): Promise<SaveSummary[]> {
-  let files: string[];
-  try {
-    files = (await readdir(dir)).filter((f) => f.endsWith(".json"));
-  } catch {
-    return [];
-  }
-  const out: SaveSummary[] = [];
-  for (const file of files) {
-    try {
-      const s = JSON.parse(await readFile(join(dir, file), "utf8")) as GameState;
-      out.push({ id: s.id, system: s.system ?? "monster-hunt", title: s.mystery.title, hunters: s.hunters.map((h) => h.name).join(", "), updatedAt: s.updatedAt, status: s.status });
-    } catch {
-      // skip unreadable files
-    }
-  }
-  return out.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const out = await listSessionSaves(dir);
+  return out.map((s) => ({ id: s.id, system: s.system, title: s.title, hunters: s.members, updatedAt: s.updatedAt, status: s.status as GameState["status"] }));
 }
 
 export const startingLuck = MAX_LUCK;

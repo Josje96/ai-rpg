@@ -4,7 +4,7 @@ A TypeScript CLI foundation for tabletop RPG sessions with an AI game master and
 
 ## Status
 
-**Playable: Monster Hunt — action-horror monster hunting with an AI Keeper**, in the terminal, hot-seat on one device (works over SSH from a phone). Up to 5 hunters, any mix of humans and AI. Everything else (the other seven systems, the party planner, the SCP setting) is still a rules slice or scaffold.
+**Playable now: Monster Hunt (action-horror, PbtA) and Shadowrun-style runs (cyberpunk heists)**, with an AI game master, in the terminal, hot-seat on one device (works over SSH from a phone). Up to 5 party members, any mix of humans and AI. Everything else (the other seven systems, the party planner, the SCP setting) is still a rules slice or scaffold.
 
 ## Play
 
@@ -81,13 +81,14 @@ Prices change; recheck before deployment. For API behavior, see [GPT-6 Luna on O
 ## Current structure
 
 - `src/cli.ts` — executable entry point and CLI commands (`play` starts the game)
-- `src/hunt/` — the playable game: rules, hunter types, mysteries, keeper prompts/validation, terminal UI
-- `src/session/` — the system-agnostic session layer: turn loop, autosaves, running recap, model-failure retries; each playable system plugs in through its adapter
+- `src/hunt/` — Monster Hunt: action-horror monster hunting (PbtA): rules, hunter types, mysteries, keeper prompts/validation, terminal UI
+- `src/anarchy/` — Shadowrun-style cyberpunk runs: d6 hit pools, condition tracks, plot points, archetypes, jobs, GM prompts/validation
+- `src/session/` — the system-agnostic session layer: turn loop, autosaves, running recap, model-failure retries, shared save directory; each playable system plugs in through its adapter
 - `scripts/playtest.ts` — live playtest against the real models (`bun run playtest`, a few cents)
 - `src/domain/` — deterministic game primitives, including dice
-- `src/rpg/` — the adapter boundary (`id`, `fit`, playable session entry point) and seven rules adapters plus the registry; only Monster Hunt is fully playable today
+- `src/rpg/` — the adapter boundary (`id`, `fit`, playable session entry point) and rules adapters plus the registry; Monster Hunt and Shadowrun: Anarchy 2.0 are fully playable, the rest are initial mechanics slices
 - `src/settings/` — system-neutral setting modules and case files
 - `src/ai/` — role-specific model and reasoning configuration, and the OpenRouter client (any OpenAI-compatible endpoint via `OPENROUTER_BASE_URL`)
 - `test/` — behavior-focused tests
 
-Keep game logic independent of the CLI so a future Discord transport can call the same engine. The D&D adapter uses SRD 5.1-compatible rules; the required attribution is in [`SRD_ATTRIBUTION.md`](SRD_ATTRIBUTION.md). SCP-derived setting content and its share-alike notice are isolated under `src/settings/scp/`. Before distributing adapters, check each game's license and required attribution. Next slices: a second playable system behind the adapter boundary (Shadowrun: Anarchy 2.0 or D&D 5e), then setup-time system matching against what the players asked for.
+Keep game logic independent of the CLI so a future Discord transport can call the same engine. The D&D adapter uses SRD 5.1-compatible rules; the required attribution is in [`SRD_ATTRIBUTION.md`](SRD_ATTRIBUTION.md). SCP-derived setting content and its share-alike notice are isolated under `src/settings/scp/`. Before distributing adapters, check each game's license and required attribution. Next slices: deepen the Shadowrun system (more archetypes, matrix and magic detail), then setup-time system matching against what the players asked for.
