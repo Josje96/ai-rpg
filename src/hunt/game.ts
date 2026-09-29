@@ -2,6 +2,9 @@ import { randomInt } from "node:crypto";
 import type { ModelClient } from "../ai/provider.js";
 import type { RandomInt } from "../domain/dice.js";
 import type { GameIO } from "../rpg/adapter.js";
+import { SessionLoop, type SessionHooks } from "../session/loop.js";
+import { withBusy } from "../session/retry.js";
+import type { TurnInput } from "../session/types.js";
 import { aiHunterAction, weaponHarm, type Choice, type Effects, type Keeper, type KeeperReply } from "./keeper.js";
 import { COUNTDOWN_LENGTH } from "./mystery.js";
 import { countdownMeter, GENERIC_ART, outOfActionArt } from "./mysteries/art.js";
@@ -26,9 +29,6 @@ export type GameDeps = {
   debug?: boolean;
 };
 
-const SUMMARIZE_AFTER = 40;
-const KEEP_RECENT = 16;
-
 export const HELP = [
   "Type what your hunter does or says, in plain words. Commands:",
   "  /sheet [name]  your sheet (or another hunter's)",
@@ -43,11 +43,6 @@ export const HELP = [
   "  /save, /quit   save (the game also autosaves every turn), or save and stop",
 ].join("\n");
 
-/** The players chose to stop after a model failure; the game is saved. */
-class GameInterrupted extends Error {}
-
-type TurnInput = { kind: "action"; text: string } | { kind: "pass" } | { kind: "quit" };
-
 export class Game {
   readonly #random: RandomInt;
 
@@ -57,65 +52,51 @@ export class Game {
 
   /** Runs until the mystery ends or a player quits. Returns true if the game is over. */
   async run(): Promise<boolean> {
-    try {
-      return await this.#run();
-    } catch (error) {
-      if (!(error instanceof GameInterrupted)) throw error;
-      await this.deps.save(this.state);
-      this.deps.io.show("info", "Game saved. When the model is back, resume with: bun run play");
-      return false;
-    }
+    const hooks: SessionHooks<GameState, Hunter> = {
+      members: (state) => state.hunters,
+      active: (_state, hunter) => harmStatus(hunter.harm) !== "out",
+      open: async (_state, _ctx, resuming) => this.#open(resuming),
+      turn: async (_state, hunter) =>
+        hunter.controller.kind === "human" ? await this.#humanTurn(hunter) : await this.#aiTurn(hunter),
+      resolve: async (_state, hunter, text) => this.#resolveAction(hunter, text),
+      betweenRounds: async (state) => {
+        const reply = await withBusy(this.deps.io, "The Keeper moves", () => this.deps.keeper.keeperTurn(state));
+        await this.#applyReply(reply, true);
+      },
+      finish: async (state) => this.#finish(state),
+      save: (state) => this.deps.save(state),
+      summarize: (state, entries) => this.deps.keeper.summarize(state, entries),
+    };
+    return new SessionLoop(this.state, hooks, {
+      io: this.deps.io,
+      model: this.deps.model,
+      random: this.deps.random,
+      debug: this.deps.debug,
+    }).run();
   }
 
-  async #run(): Promise<boolean> {
+  async #open(resuming: boolean): Promise<void> {
     const { state, deps } = this;
-    if (state.round === 0) {
+    if (!resuming) {
       deps.io.art(this.#art.title);
       deps.io.show("heading", state.mystery.title);
       if (state.mystery.credits?.length) deps.io.show("system", "Uses openly licensed material; type /credits for attribution.");
       deps.io.show("info", state.mystery.hook);
-      const reply = await this.#withBusy("The Keeper sets the scene", () => deps.keeper.openScene(state));
+      const reply = await withBusy(deps.io, "The Keeper sets the scene", () => deps.keeper.openScene(state));
       await this.#applyReply(reply);
-      state.round = 1;
-      state.turn = 0;
-      await deps.save(state);
     } else {
       deps.io.show("heading", `${state.mystery.title}, round ${state.round}`);
       deps.io.show("info", state.summary || "(Resuming.)");
       const last = [...state.log].reverse().find((e) => e.kind === "keeper");
       if (last) deps.io.show("keeper", last.text);
     }
+  }
 
-    while (state.status === "active") {
-      while (state.turn < state.hunters.length && state.status === "active") {
-        const hunter = state.hunters[state.turn]!;
-        if (harmStatus(hunter.harm) !== "out") {
-          const input = hunter.controller.kind === "human" ? await this.#humanTurn(hunter) : await this.#aiTurn(hunter);
-          if (input.kind === "quit") {
-            await deps.save(state);
-            deps.io.show("info", "Game saved. Pick it back up with: bun run play");
-            return false;
-          }
-          if (input.kind === "action") await this.#resolveAction(hunter, input.text);
-        }
-        state.turn += 1;
-        await this.#maybeSummarize();
-        await deps.save(state);
-      }
-      if (state.status !== "active") break;
-      const reply = await this.#withBusy("The Keeper moves", () => deps.keeper.keeperTurn(state));
-      await this.#applyReply(reply, true);
-      if (state.status !== "active") break;
-      state.round += 1;
-      state.turn = 0;
-      await deps.save(state);
-    }
-
+  #finish(state: GameState): void {
+    const { deps } = this;
     deps.io.art(state.status === "won" ? this.#art.won : this.#art.lost);
     deps.io.show("heading", state.status === "won" ? "The monster is stopped." : "The monster wins this week.");
     deps.io.show("info", `Clues found: ${state.cluesFound.length}/${state.mystery.clues.length}. Model cost this game: $${state.costUsd.toFixed(3)}.`);
-    await deps.save(state);
-    return true;
   }
 
   // ---------- turns ----------
@@ -143,7 +124,7 @@ export class Game {
         case "save": await this.deps.save(this.state); io.show("info", "Saved."); break;
         case "ask":
           if (!arg) { io.show("info", "Usage: /ask <question>"); break; }
-          io.show("keeper", await this.#withBusy("The Keeper thinks", () => this.deps.keeper.answer(this.state, player, arg)));
+          io.show("keeper", await withBusy(this.deps.io, "The Keeper thinks", () => this.deps.keeper.answer(this.state, player, arg)));
           break;
         default: io.show("info", `Unknown command /${command}. Type /help.`);
       }
@@ -151,7 +132,7 @@ export class Game {
   }
 
   async #aiTurn(hunter: Hunter): Promise<TurnInput> {
-    const result = await this.#withBusy(`${hunter.name} is thinking`, () => aiHunterAction(this.deps.model, this.state, hunter));
+    const result = await withBusy(this.deps.io, `${hunter.name} is thinking`, () => aiHunterAction(this.deps.model, this.state, hunter));
     this.state.costUsd += result.costUsd;
     const text = result.say ? `"${result.say}" ${result.act}` : result.act;
     return { kind: "action", text };
@@ -164,7 +145,7 @@ export class Game {
     log(state, { kind: "hunter", who: hunter.name, text });
     deps.io.show("hunter", text, hunter.name);
 
-    const adj = await this.#withBusy("The Keeper considers", () => deps.keeper.adjudicate(state, hunter, text));
+    const adj = await withBusy(this.deps.io, "The Keeper considers", () => deps.keeper.adjudicate(state, hunter, text));
     this.#warn(adj.warnings);
     if (!adj.roll) {
       await this.#applyReply(adj);
@@ -206,7 +187,7 @@ export class Game {
       ? await this.#pickQuestions(hunter, move.questions, roll.band === "strong" ? move.holds.strong : move.holds.mixed)
       : [];
     if (questions.length) log(state, { kind: "system", text: `${hunter.name} asks: ${questions.join(" / ")}` });
-    const reply = await this.#withBusy("The Keeper narrates", () => deps.keeper.resolve(state, hunter, text, move.id as BasicMoveId, roll, questions));
+    const reply = await withBusy(this.deps.io, "The Keeper narrates", () => deps.keeper.resolve(state, hunter, text, move.id as BasicMoveId, roll, questions));
     // Fights are the engine's job: a hit on the monster deals the hunter's weapon harm, whatever the Keeper remembered.
     if (move.id === "kick-some-ass" && roll.band !== "miss" && reply.target === "monster") {
       reply.effects = { ...reply.effects, monsterHarm: weaponHarm(hunter) };
@@ -308,7 +289,7 @@ export class Game {
     const picked = choice.options[index]!;
     log(state, { kind: "hunter", who: hunter.name, text: `(chooses) ${picked}` });
     deps.io.show("hunter", `(chooses) ${picked}`, hunter.name);
-    const reply = await this.#withBusy("The Keeper narrates", () => deps.keeper.followUp(state, hunter, choice, picked));
+    const reply = await withBusy(this.deps.io, "The Keeper narrates", () => deps.keeper.followUp(state, hunter, choice, picked));
     await this.#applyReply(reply);
   }
 
@@ -348,35 +329,6 @@ export class Game {
   }
 
   // ---------- plumbing ----------
-
-  async #maybeSummarize(): Promise<void> {
-    const { state } = this;
-    if (state.log.length - state.summarizedThrough < SUMMARIZE_AFTER) return;
-    const upTo = state.log.length - KEEP_RECENT;
-    try {
-      state.summary = await this.deps.keeper.summarize(state, state.log.slice(state.summarizedThrough, upTo));
-      state.summarizedThrough = upTo;
-    } catch (error) {
-      this.#warn([`recap failed, will retry: ${error instanceof Error ? error.message : String(error)}`]);
-    }
-  }
-
-  async #withBusy<T>(label: string, fn: () => Promise<T>): Promise<T> {
-    for (let attempt = 0; ; attempt++) {
-      const stop = this.deps.io.busy(label);
-      try {
-        return await fn();
-      } catch (error) {
-        stop();
-        const message = error instanceof Error ? error.message : String(error);
-        this.deps.io.show("error", `The Keeper stumbled: ${message}`);
-        if (!(await this.deps.io.confirm("Try again?"))) throw new GameInterrupted(message);
-        continue;
-      } finally {
-        stop();
-      }
-    }
-  }
 
   #warn(warnings: string[]): void {
     if (this.deps.debug) for (const w of warnings) this.deps.io.show("error", `(debug) ${w}`);

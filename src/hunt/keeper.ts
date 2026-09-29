@@ -4,7 +4,8 @@ import { GENERIC_ART } from "./mysteries/art.js";
 import { SOURCE_CREDITS } from "./mysteries/credits.js";
 import { playbook } from "./playbooks.js";
 import { BASIC_MOVES, STATS, basicMove, describeRoll, harmStatus, type BasicMoveId, type MoveRoll, type Stat } from "./rules.js";
-import { activeHunters, countdownAllowed, type GameState, type Hunter, type LogEntry } from "./state.js";
+import { activeHunters, countdownAllowed, type GameState, type Hunter } from "./state.js";
+import { formatEntry, recentLog, type LogEntry } from "../session/types.js";
 
 /**
  * The keeper (AI GM) proposes; the engine disposes. Every reply is a JSON object that is validated and clamped here
@@ -32,8 +33,6 @@ export type KeeperReply = { narration: string; effects: Effects; warnings: strin
 export type Target = "monster" | "minion" | "other";
 export type Resolution = KeeperReply & { target: Target };
 export type Adjudication = KeeperReply & { roll: { move: BasicMoveId; stat: Stat; why: string } | null };
-
-const RECENT_ENTRIES = 16;
 
 // ---------- prompts ----------
 
@@ -105,15 +104,6 @@ function hunterLine(h: Hunter): string {
   return `- id "${h.id}": ${h.name}${pronouns}, ${book?.name ?? h.playbook}, ${who}. Stats: ${stats}. Moves: ${moves}. Gear: ${gear}. Harm ${h.harm}/7 (${harmStatus(h.harm)}), Luck ${h.luck}.`;
 }
 
-export function formatEntry(e: LogEntry): string {
-  switch (e.kind) {
-    case "keeper": return `KEEPER: ${e.text}`;
-    case "hunter": return `${e.who ?? "Hunter"}: ${e.text}`;
-    case "roll": return `ROLL ${e.who ?? ""}: ${e.text}`;
-    case "system": return `[${e.text}]`;
-  }
-}
-
 function secretDigest(m: Mystery, state: GameState): string {
   const clues = m.clues.map((c) => `- ${c}`).join("\n");
   const known = state.cluesFound.map((c) => `- ${c}`).join("\n") || "- (none yet)";
@@ -134,11 +124,6 @@ ${known}
 Countdown:
 ${countdown}
 Weakness known to hunters: ${state.weaknessKnown ? "yes" : "no"}`;
-}
-
-export function recentLog(state: GameState, count = RECENT_ENTRIES): string {
-  const start = Math.max(state.summarizedThrough, state.log.length - count);
-  return state.log.slice(start).map(formatEntry).join("\n") || "(nothing yet)";
 }
 
 function context(state: GameState): string {
@@ -366,7 +351,7 @@ Reply: {"narration": "...", ${EFFECTS_SCHEMA}}`, 600);
     return asStr(asObj(raw).answer, 800) || "The Keeper shrugs: you'll have to find out.";
   }
 
-  async summarize(state: GameState, entries: LogEntry[]): Promise<string> {
+  async summarize(state: GameState, entries: readonly LogEntry[]): Promise<string> {
     const { data, costUsd } = await this.model.completeJson({
       role: "player",
       maxTokens: 600,

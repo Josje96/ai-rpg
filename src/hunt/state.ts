@@ -5,8 +5,9 @@ import { join } from "node:path";
 import { COUNTDOWN_LENGTH, type Mystery } from "./mystery.js";
 import type { Weapon } from "./playbooks.js";
 import { MAX_HARM, MAX_LUCK, MAX_STAT, STATS, XP_PER_IMPROVEMENT, harmStatus, type Stat, type Stats } from "./rules.js";
+import type { Controller, LogEntry } from "../session/types.js";
 
-export type Controller = { kind: "human"; player: string } | { kind: "ai"; personality: string };
+export type { Controller, LogEntry } from "../session/types.js";
 
 export type Hunter = {
   id: string;
@@ -21,12 +22,6 @@ export type Hunter = {
   harm: number;
   luck: number;
   xp: number;
-};
-
-export type LogEntry = {
-  kind: "keeper" | "hunter" | "roll" | "system";
-  who?: string;
-  text: string;
 };
 
 export type GameState = {
