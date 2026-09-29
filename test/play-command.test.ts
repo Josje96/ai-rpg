@@ -27,6 +27,7 @@ test("the matcher refuses bad ids instead of guessing", async () => {
 });
 
 test("playCommand: no brief goes straight to the menu, Quit exits cleanly", async () => {
+  process.env.TABLETOP_AI_SAVES = await mkdtemp(join(tmpdir(), "ttai-menu-")); // no real saves leaking in
   const model = new FakeModel({ gm: [], player: [] });
   const io = new ScriptIO(["", "2", "3"]); // no brief; Monster Hunt from the menu; Quit from its menu
   assert.equal(await playCommand(io, model), 0);

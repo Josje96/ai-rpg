@@ -244,8 +244,8 @@ test("key-moment art: monster reveal (once), weakness, clock meter, hunter out, 
     outOfActionArt("Ada"),
     COUNTY_FAIR_ART.won,
   ]);
-  assert.match(io.text("system"), /Clock \[#-----\] Calm Before the Storm/);
-  assert.match(io.text("info"), /Clock \[------\] not started/, "/clock before the clock moves");
+  assert.match(io.text("system"), /Clock █░░░░░ Calm Before the Storm/);
+  assert.match(io.text("info"), /Clock ░░░░░░ not started/, "/clock before the clock moves");
   assert.equal(io.remaining(), 0);
   // the out-of-action card appears after the harm line that caused it
   const harmIndex = io.shown.findIndex((x) => x.text.includes("Ada takes 4 harm") && x.text.includes("OUT"));

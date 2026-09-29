@@ -7,6 +7,7 @@ import {
   COUNTY_FAIR_LARGE, GENERIC_LARGE, LOW_SIGNAL_LARGE, MANNEQUIN_SEASON_LARGE, MERCY_LAKE_LARGE, SILVER_THREADS_LARGE,
   SWEETWATER_LARGE,
 } from "./art-large.js";
+import { theme } from "../../session/theme.js";
 
 export const ART_KEYS = ["title", "monster", "weakness", "won", "lost"] as const;
 export type ArtKey = (typeof ART_KEYS)[number];
@@ -437,11 +438,11 @@ export function outOfActionArt(name: string): ArtVariants {
   return [tombstone(name, 25, "               "), tombstone(name, 13, "        ")];
 }
 
-/** e.g. "[###---] The Plot Thickens" */
+/** e.g. "████░░░░ The Plot Thickens" */
 export function countdownMeter(step: number, steps: readonly string[]): string {
   const filled = Math.max(0, Math.min(steps.length, step));
   const label = filled ? (steps[filled - 1] ?? "").split(":")[0] : "not started";
-  return `[${"#".repeat(filled)}${"-".repeat(steps.length - filled)}] ${label}`;
+  return `${theme.meterFill("█".repeat(filled))}${theme.meterEmpty("░".repeat(Math.max(0, steps.length - filled)))} ${label}`;
 }
 
 export const MERCY_LAKE_ART = sized(MERCY_LAKE_LARGE, MERCY_LAKE_SMALL);

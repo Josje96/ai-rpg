@@ -1,14 +1,8 @@
 import { createInterface, type Interface } from "node:readline/promises";
+import type { WriteStream } from "node:fs";
+import ora from "ora";
 import type { GameIO } from "../rpg/adapter.js";
-
-const useColor = process.stdout.isTTY && !process.env.NO_COLOR;
-const paint = (code: string) => (text: string) => (useColor ? `\x1b[${code}m${text}\x1b[0m` : text);
-const bold = paint("1");
-const dim = paint("2");
-const red = paint("31");
-const yellow = paint("33");
-const magenta = paint("35");
-const cyan = paint("36");
+import { box, createTheme, SPINNER_FRAMES, type Theme } from "./theme.js";
 
 /** Wrap to the terminal width (phones are narrow), keeping paragraph breaks and a hanging indent. */
 export function wrap(text: string, width: number, indent = ""): string {
@@ -31,12 +25,15 @@ export function wrap(text: string, width: number, indent = ""): string {
 
 export class TerminalIO implements GameIO {
   readonly #rl: Interface;
+  /** The look and feel is bound to this stream, so pipes/tests degrade to plain text. */
+  readonly #theme: Theme;
   #closed = false;
   /** Lines typed before a prompt was waiting (type-ahead, paste, laggy SSH); readline would drop them. */
   readonly #buffered: string[] = [];
   #waiting: ((line: string | null) => void) | undefined;
 
   constructor(input = process.stdin, private readonly output = process.stdout) {
+    this.#theme = createTheme(output);
     this.#rl = createInterface({ input, output, terminal: input.isTTY ?? false });
     this.#rl.on("line", (line) => {
       const waiting = this.#waiting;
@@ -63,13 +60,19 @@ export class TerminalIO implements GameIO {
 
   show(kind: Parameters<GameIO["show"]>[0], text: string, who?: string): void {
     const w = this.#width;
+    const wrapName = (name: string, body: string, paint: (t: string) => string): string => {
+      const lines = wrap(`${name}: ${body}`, w).split("\n");
+      const nameLen = `${name}:`.length;
+      lines[0] = `${paint(`${name}:`)}${lines[0]!.slice(nameLen)}`;
+      return lines.join("\n");
+    };
     switch (kind) {
-      case "heading": this.#print("\n" + bold(`== ${text} ==`)); break;
-      case "keeper": this.#print("\n" + wrap(`${cyan("Keeper:")} ${text}`, w + (useColor ? 9 : 0))); break;
-      case "hunter": this.#print("\n" + wrap(`${yellow(`${who ?? "Hunter"}:`)} ${text}`, w + (useColor ? 9 : 0))); break;
-      case "roll": this.#print(magenta(wrap(`  dice ${who ? who + ": " : ""}${text}`, w, "    "))); break;
-      case "system": this.#print(dim(wrap(`  * ${text}`, w, "    "))); break;
-      case "error": this.#print(red(wrap(text, w))); break;
+      case "heading": this.#print("\n" + box(wrap(text, w - 4), { width: w }, this.#theme.color)); break;
+      case "keeper": this.#print("\n" + wrapName("Keeper", text, this.#theme.keeper)); break;
+      case "hunter": this.#print("\n" + wrapName(who ?? "Hunter", text, this.#theme.hunter)); break;
+      case "roll": this.#print(this.#theme.roll(wrap(`  dice ${who ? who + ": " : ""}${text}`, w, "    "))); break;
+      case "system": this.#print(this.#theme.system(wrap(`  * ${text}`, w, "    "))); break;
+      case "error": this.#print(this.#theme.error(wrap(text, w))); break;
       case "info": this.#print(wrap(text, w)); break;
     }
   }
@@ -84,20 +87,20 @@ export class TerminalIO implements GameIO {
       const artWidth = Math.max(...trimmed.map((l) => l.length));
       if (artWidth > width) continue; // too wide: try the next size down; wrapped art is just noise
       const pad = " ".repeat(Math.floor((width - artWidth) / 2));
-      this.#print("\n" + yellow(trimmed.map((l) => (l ? pad + l : l)).join("\n")));
+      this.#print("\n" + this.#theme.dusk(trimmed.map((l) => (l ? pad + l : l)).join("\n")));
       return;
     }
   }
 
   async ask(prompt: string): Promise<string> {
-    this.#print("\n" + bold(wrap(prompt, this.#width)));
+    this.#print("\n" + this.#theme.prompt(wrap(prompt, this.#width)));
     const ready = this.#buffered.shift();
     if (ready !== undefined) {
-      this.#print(`> ${ready}`);
+      this.#print(`${this.#theme.prompt(">")} ${ready}`);
       return ready;
     }
     if (this.#closed) return "/quit";
-    this.#rl.setPrompt("> ");
+    this.#rl.setPrompt(`${this.#theme.prompt(">")} `);
     this.#rl.prompt();
     const answer = await new Promise<string | null>((resolve) => { this.#waiting = resolve; });
     return answer ?? "/quit";
@@ -105,7 +108,7 @@ export class TerminalIO implements GameIO {
 
   async choose(prompt: string, options: readonly string[]): Promise<number> {
     const w = this.#width;
-    const list = options.map((o, i) => wrap(`  ${i + 1}) ${o}`, w, "     ")).join("\n");
+    const list = box(options.map((o, i) => wrap(`${i + 1}) ${o}`, w - 6, "   ")).join("\n"), { width: w }, this.#theme.color);
     for (;;) {
       const raw = (await this.ask(`${prompt}\n${list}`)).trim();
       if (raw === "/quit") return 0;
@@ -121,22 +124,18 @@ export class TerminalIO implements GameIO {
   }
 
   busy(label: string): () => void {
-    let stopped = false;
-    if (!this.output.isTTY) {
-      this.#print(dim(`${label}...`));
+    // ora needs a live cursor; streams without one (pipes, test fakes) get a plain status line.
+    if (!this.#theme.color || typeof this.output.cursorTo !== "function") {
+      this.#print(this.#theme.system(`${label}...`));
       return () => {};
     }
-    const frames = ["|", "/", "-", "\\"];
-    let i = 0;
-    const draw = () => this.output.write(`\r${dim(`${frames[i++ % frames.length]} ${label}...`)}`);
-    draw();
-    const timer = setInterval(draw, 150);
-    return () => {
-      if (stopped) return;
-      stopped = true;
-      clearInterval(timer);
-      this.output.write("\r\x1b[2K");
-    };
+    const spinner = ora({
+      text: this.#theme.system(`${label}...`),
+      color: "cyan",
+      spinner: { interval: 80, frames: SPINNER_FRAMES },
+      stream: this.output as unknown as WriteStream,
+    }).start();
+    return () => spinner.stop();
   }
 
   close(): void {

@@ -34,7 +34,7 @@ Needs `OPENROUTER_API_KEY` in `.env` (see `.env.example`). A session is a few ce
 - **Luck** (7 each) turns a roll into a 12 or cancels incoming harm; you're asked when it matters.
 - **Win** by finding the monster's weakness through clues and using it before the six-step countdown runs out.
 - **Commands:** `/sheet`, `/party`, `/clues`, `/clock`, `/recap`, `/ask <question>` (out of character), `/rules`, `/credits`, `/pass`, `/save`, `/quit`.
-- **Terminal art** marks the key moments: each story's title, the monster's first clear appearance, discovering its weakness, a hunter going out of action, and a win or loss screen. A clock meter (`[###---] The Plot Thickens`) shows whenever the countdown moves. Every piece comes in two sizes (up to 72 and 40 columns); the terminal shows the largest that fits, centered. Plain ASCII.
+- **Terminal art** marks the key moments: each story's title, the monster's first clear appearance, discovering its weakness, a hunter going out of action, and a win or loss screen. A clock meter (`████░░░░ The Plot Thickens`) shows whenever the countdown moves. Every piece comes in two sizes (up to 72 and 40 columns); the terminal shows the largest that fits, centered. Plain ASCII.
 - **Saves** happen after every turn (`~/.local/share/tabletop-ai/saves`). Ctrl-C, Ctrl-D or a dropped SSH connection saves too; `bun run play` offers to continue.
 
 ### Mysteries

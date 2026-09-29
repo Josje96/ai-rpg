@@ -21,5 +21,11 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "typescript": "^5.8.0"
+  },
+  "dependencies": {
+    "boxen": "^9.0.0",
+    "chalk": "5",
+    "gradient-string": "^3.0.0",
+    "ora": "^9.4.1"
   }
 }
